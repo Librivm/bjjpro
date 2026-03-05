@@ -1,14 +1,11 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 // ── 🔑 REPLACE THESE WITH YOUR SUPABASE CREDENTIALS ─────────────────────────
 const SUPABASE_URL = "https://vwfeouwokrvtcmoyrjxo.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3ZmVvdXdva3J2dGNtb3lyanhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2NDc4MDksImV4cCI6MjA4ODIyMzgwOX0.ZN3I_cqwG1UKV8_crqGRZJcHc9SicthD-yo0UBkwZ9k";
-// ─────────────────────────────────────────────────────────────────────────────
-
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// ── Global styles ─────────────────────────────────────────────────────────────
 const GLOBAL_CSS = `
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -24,7 +21,6 @@ body{background:#f5f0eb;color:#1e2d40;font-family:'Plus Jakarta Sans',sans-serif
 input[type=date]::-webkit-calendar-picker-indicator{opacity:0.5;}
 `;
 
-// ── Theme ─────────────────────────────────────────────────────────────────────
 const T = {
   bg:"#f5f0eb", surface:"#ffffff", card:"#ffffff", cardAlt:"#faf7f4",
   border:"#e4ddd6", teal:"#3d7a96", tealLight:"#eaf3f7",
@@ -33,17 +29,148 @@ const T = {
   shadow:"0 2px 12px rgba(30,45,64,0.08)",
 };
 
-// ── Static data ───────────────────────────────────────────────────────────────
+// ── Techniques with skill levels ──────────────────────────────────────────────
 const TECHNIQUES = {
-  "Guard":["Triangle Choke","Armbar from Guard","Scissor Sweep","Hip Bump Sweep","Kimura from Guard","Omoplata","Flower Sweep","Guillotine Choke","Loop Choke","Lasso Guard","Spider Guard","X-Guard Entry"],
-  "Half Guard":["Kimura Trap","Lockdown","Old School Sweep","Electric Chair","Half Guard Pass","Knee Shield","Dog Fight Position","Single Leg from Half"],
-  "Mount":["Armbar from Mount","Americana","Cross Collar Choke","S-Mount Transition","Trap & Roll Escape","Elbow-Knee Escape","High Mount","Ezekiel Choke"],
-  "Side Control":["Americana","Kimura","Katagatame","Knee on Belly","North-South Choke","D'Arce Choke","Side Control Escape","Twister Side Control"],
-  "Back Control":["Rear Naked Choke","Bow & Arrow Choke","Collar Choke","Back Escape","Harness Grip","Body Triangle","Seatbelt Control"],
-  "Takedowns":["Double Leg","Single Leg","Osoto Gari","Seoi Nage","Ankle Pick","Guard Pull","Foot Sweep","Uchi Mata","Blast Double"],
-  "Leg Locks":["Heel Hook","Kneebar","Ankle Lock","Toe Hold","Calf Slicer","Saddle Position","Outside Heel Hook"],
-  "Passing":["Torreando Pass","Knee Slice","X-Pass","Stack Pass","Leg Drag","Over-Under Pass","Smash Pass"],
+  "Guard":[
+    {name:"Scissor Sweep",level:"Fundamental",desc:"Classic closed guard sweep using leg scissors and collar grip to off-balance and roll your opponent."},
+    {name:"Hip Bump Sweep",level:"Fundamental",desc:"Sit up and drive your hip into your opponent to knock them over from closed guard."},
+    {name:"Guillotine Choke",level:"Fundamental",desc:"Front headlock choke applied when opponent shoots in or lowers their head."},
+    {name:"Kimura from Guard",level:"Fundamental",desc:"Figure-four shoulder lock attacking the arm from closed guard."},
+    {name:"Triangle Choke",level:"Intermediate",desc:"Blood choke using your legs around the neck and one arm; requires isolating one arm across."},
+    {name:"Armbar from Guard",level:"Intermediate",desc:"Hyper-extend the elbow by controlling the wrist and bridging hips up from guard."},
+    {name:"Omoplata",level:"Intermediate",desc:"Shoulder lock using your legs to rotate the opponent's arm behind their back."},
+    {name:"Flower Sweep",level:"Intermediate",desc:"Grip the ankle and opposite collar, then use a pendulum motion to sweep."},
+    {name:"Loop Choke",level:"Advanced",desc:"Collar choke that catches opponents who posture up aggressively; requires precise collar depth."},
+    {name:"Lasso Guard",level:"Advanced",desc:"Wrap your leg around the opponent's arm to control posture and create sweeps/submissions."},
+    {name:"Spider Guard",level:"Advanced",desc:"Bi-lateral sleeve grips with both feet on biceps; excellent control and sweep platform."},
+    {name:"X-Guard Entry",level:"Advanced",desc:"Enter under the hips to destabilize a standing opponent; platform for many sweeps."},
+  ],
+  "Half Guard":[
+    {name:"Knee Shield",level:"Fundamental",desc:"Use your knee as a frame to prevent the opponent from flattening you out."},
+    {name:"Half Guard Pass",level:"Fundamental",desc:"Flatten the opponent and clear the knee to pass to side control."},
+    {name:"Dog Fight Position",level:"Intermediate",desc:"Scramble position on all fours from half guard — platform for back takes or single legs."},
+    {name:"Old School Sweep",level:"Intermediate",desc:"Take the outside leg, drive forward and roll through to get on top."},
+    {name:"Kimura Trap",level:"Intermediate",desc:"Catch the near-side wrist from half guard bottom to set up sweeps or submissions."},
+    {name:"Lockdown",level:"Intermediate",desc:"Hyper-control the opponent's leg using a figure-four leg wrap to stall and set up sweeps."},
+    {name:"Electric Chair",level:"Advanced",desc:"From lockdown, use a crotch grip to stretch opponent and sweep or apply leg lock pressure."},
+    {name:"Single Leg from Half",level:"Advanced",desc:"Underhook the leg from dog-fight to execute a single-leg takedown."},
+  ],
+  "Mount":[
+    {name:"Trap & Roll Escape",level:"Fundamental",desc:"Trap the arm and foot on one side, then bridge and roll to reverse the position."},
+    {name:"Elbow-Knee Escape",level:"Fundamental",desc:"Create space with frames, then shrimp to recover guard."},
+    {name:"Americana",level:"Fundamental",desc:"Figure-four shoulder lock targeting the rotator cuff from mount."},
+    {name:"Cross Collar Choke",level:"Intermediate",desc:"Two-handed collar choke requiring deep cross-collar grips; powerful in gi."},
+    {name:"Armbar from Mount",level:"Intermediate",desc:"Isolate and hyper-extend the arm by swinging the leg over the head from mount."},
+    {name:"S-Mount Transition",level:"Intermediate",desc:"Advance the knee to the armpit for a tighter mount and easier armbar entry."},
+    {name:"High Mount",level:"Intermediate",desc:"Advance knees to armpits for strong control and submission access."},
+    {name:"Ezekiel Choke",level:"Advanced",desc:"Sleeve-grip choke using your own sleeve to apply pressure from inside mount."},
+  ],
+  "Side Control":[
+    {name:"Americana",level:"Fundamental",desc:"Isolate the near-side arm in a bent position and rotate to apply shoulder lock."},
+    {name:"Side Control Escape",level:"Fundamental",desc:"Frame, shrimp, and recover guard or take the underhook to get to your knees."},
+    {name:"Kimura",level:"Fundamental",desc:"Figure-four lock on the shoulder from side control top."},
+    {name:"Knee on Belly",level:"Intermediate",desc:"Transition to knee-on-belly to create pressure and force reactions."},
+    {name:"Katagatame",level:"Intermediate",desc:"Head-and-arm choke using the shoulder to compress the neck."},
+    {name:"D'Arce Choke",level:"Intermediate",desc:"Arm-in front choke applied from top side control or north-south."},
+    {name:"North-South Choke",level:"Advanced",desc:"Chest-to-chest choke applied from north-south; requires weight distribution."},
+    {name:"Twister Side Control",level:"Advanced",desc:"Isolate the arm and leg to set up the twister submission from side control."},
+  ],
+  "Back Control":[
+    {name:"Seatbelt Control",level:"Fundamental",desc:"Over-under grip around the torso; foundational back control."},
+    {name:"Rear Naked Choke",level:"Fundamental",desc:"No-gi blood choke from back; seat-belt control with choking arm under the chin."},
+    {name:"Back Escape",level:"Fundamental",desc:"Defend the choke and escape hips toward the bottom hook to recover guard."},
+    {name:"Harness Grip",level:"Intermediate",desc:"Secure the seatbelt deeply for tight back control and submission transitions."},
+    {name:"Body Triangle",level:"Intermediate",desc:"Lock a figure-four with your legs around the torso to prevent back escape."},
+    {name:"Bow & Arrow Choke",level:"Intermediate",desc:"Gi collar choke from the back using lapel and trouser grip for powerful leverage."},
+    {name:"Collar Choke",level:"Advanced",desc:"Deep collar grip choke from back — can be applied with one or two hands."},
+  ],
+  "Takedowns":[
+    {name:"Guard Pull",level:"Fundamental",desc:"Jump or sit to guard to begin ground work; minimal risk for guard specialists."},
+    {name:"Ankle Pick",level:"Fundamental",desc:"Attack the ankle with a level change when the opponent steps forward."},
+    {name:"Foot Sweep",level:"Fundamental",desc:"Time a sweeping motion against the opponent's foot as they step."},
+    {name:"Double Leg",level:"Intermediate",desc:"Level change, drive through to the outside, and take both legs to complete the shot."},
+    {name:"Single Leg",level:"Intermediate",desc:"Secure one leg and either run the pipe, trip, or lift to finish."},
+    {name:"Osoto Gari",level:"Intermediate",desc:"Judo outside leg reap; collar-sleeve grip and reap the near leg."},
+    {name:"Seoi Nage",level:"Intermediate",desc:"Judo shoulder throw; duck under and load the opponent onto your back."},
+    {name:"Uchi Mata",level:"Advanced",desc:"Inner thigh throw; attack the inner thigh with a sweeping leg and pull the upper body."},
+    {name:"Blast Double",level:"Advanced",desc:"Explosive double-leg shot closing distance from outside; wrestler staple."},
+  ],
+  "Leg Locks":[
+    {name:"Ankle Lock",level:"Fundamental",desc:"Straight foot lock applying pressure to the Achilles tendon; legal at most levels."},
+    {name:"Calf Slicer",level:"Intermediate",desc:"Compress the calf against your shin; illegal at lower belt levels in IBJJF."},
+    {name:"Toe Hold",level:"Intermediate",desc:"Figure-four grip on the foot applying rotational pressure; illegal at lower levels."},
+    {name:"Kneebar",level:"Intermediate",desc:"Hyper-extend the knee using your whole body; restricted at many belt levels."},
+    {name:"Saddle Position",level:"Advanced",desc:"Inside sankaku control of the leg — the platform for heel hooks."},
+    {name:"Outside Heel Hook",level:"Advanced",desc:"Rotate the heel outward to apply medial knee stress; restricted by IBJJF."},
+    {name:"Heel Hook",level:"Advanced",desc:"Inside or outside rotation of the heel applying ligament stress to the knee."},
+  ],
+  "Passing":[
+    {name:"Torreando Pass",level:"Fundamental",desc:"Bull-fighter pass — control both ankles and move side to side to pass."},
+    {name:"Knee Slice",level:"Fundamental",desc:"Drive the knee across the thigh to cut through the guard and achieve side control."},
+    {name:"X-Pass",level:"Fundamental",desc:"Step to the side, push the legs away and pass laterally."},
+    {name:"Stack Pass",level:"Intermediate",desc:"Fold the opponent's legs to their chest and drive forward to pressure-pass."},
+    {name:"Over-Under Pass",level:"Intermediate",desc:"One arm over the leg, one under — shoulder into the hip to drive through."},
+    {name:"Leg Drag",level:"Intermediate",desc:"Pull the legs to one side and use the resulting angle to pass."},
+    {name:"Smash Pass",level:"Advanced",desc:"Flatten the hips and use weight to clear the legs; very physical pressure pass."},
+  ],
 };
+
+// ── IBJJF Rules Data ──────────────────────────────────────────────────────────
+const IBJJF_ILLEGAL_MOVES = [
+  {id:1, name:"Submission techniques stretching legs apart", belts:["4-12","13-15","16-17","Blue-Purple","Brown-Black No-Gi"]},
+  {id:2, name:"Choke with spinal lock", belts:["4-12","13-15","16-17","Blue-Purple","Brown-Black No-Gi"]},
+  {id:3, name:"Straight foot lock", belts:["4-12","13-15","16-17"]},
+  {id:4, name:"Forearm choke using the sleeve (Ezequiel choke)", belts:["4-12","13-15"]},
+  {id:5, name:"Frontal guillotine choke", belts:["4-12","13-15"]},
+  {id:6, name:"Omoplata", belts:["4-12","13-15"]},
+  {id:7, name:"Triangle (pulling head)", belts:["4-12","13-15"]},
+  {id:8, name:"Arm triangle", belts:["4-12","13-15"]},
+  {id:9, name:"Lock inside closed guard compressing kidneys or ribs", belts:["4-12","13-15","16-17"]},
+  {id:10, name:"Wrist lock", belts:["4-12","13-15"]},
+  {id:11, name:"Single leg takedown with head outside opponent's body", belts:["4-12","13-15","16-17"], note:"No penalty applied to athlete"},
+  {id:12, name:"Bicep slicer", belts:["4-12","13-15","16-17","Blue-Purple"]},
+  {id:13, name:"Calf slicer", belts:["4-12","13-15","16-17","Blue-Purple"]},
+  {id:14, name:"Knee bar", belts:["4-12","13-15","16-17","Blue-Purple"]},
+  {id:15, name:"Toe hold", belts:["4-12","13-15","16-17","Blue-Purple"]},
+  {id:16, name:"Heel hook", belts:["4-12","13-15","16-17","Blue-Purple","Brown-Black Gi"]},
+  {id:17, name:"Locks twisting the knees", belts:["4-12","13-15","16-17","Blue-Purple","Brown-Black Gi"]},
+  {id:18, name:"Knee Reaping", belts:["4-12","13-15","16-17","Blue-Purple","Brown-Black Gi"]},
+  {id:19, name:"In straight foot lock, turning toward foot not under attack", belts:["4-12","13-15","16-17","Blue-Purple","Brown-Black Gi"]},
+  {id:20, name:"In toe hold, applying outward pressure on the foot", belts:["4-12","13-15","16-17","Blue-Purple","Brown-Black Gi"]},
+  {id:21, name:"Slam", belts:["4-12","13-15","16-17","Blue-Purple","Brown-Black Gi","Brown-Black No-Gi"]},
+  {id:22, name:"Spinal lock without choke", belts:["4-12","13-15","16-17","Blue-Purple","Brown-Black Gi","Brown-Black No-Gi"]},
+  {id:23, name:"Scissor takedown", belts:["4-12","13-15","16-17","Blue-Purple","Brown-Black Gi","Brown-Black No-Gi"]},
+  {id:24, name:"Bending fingers backwards", belts:["4-12","13-15","16-17","Blue-Purple","Brown-Black Gi","Brown-Black No-Gi"]},
+  {id:25, name:"Grab belt and throw to floor on head when defending single leg (head outside)", belts:["4-12","13-15","16-17","Blue-Purple","Brown-Black Gi","Brown-Black No-Gi"], severity:"severe"},
+  {id:26, name:"Suplex takedown landing with opponent's head or neck on ground", belts:["4-12","13-15","16-17","Blue-Purple","Brown-Black Gi","Brown-Black No-Gi"], severity:"severe"},
+];
+
+const IBJJF_SERIOUS_FOULS = [
+  {label:"A", desc:"Biting or hair-pulling"},
+  {label:"B", desc:"Putting fingers in the mouth, nose, or ears of the opponent"},
+  {label:"C", desc:"Attempting to gouge out the opponent's eyes"},
+  {label:"D", desc:"Head-butting"},
+  {label:"E", desc:"Striking with elbows, knees, feet, or head"},
+  {label:"F", desc:"Intentional slamming"},
+  {label:"G", desc:"Intentionally falling out of bounds"},
+  {label:"H", desc:"Using profanity"},
+  {label:"I", desc:"Intentionally pulling on or disarranging the opponent's uniform"},
+  {label:"J", desc:"Disrespecting the referee or tournament staff"},
+  {label:"K", desc:"Any act of unsportsmanlike conduct"},
+  {label:"L", desc:"Stalling or not engaging"},
+  {label:"M", desc:"Deliberately fleeing the fight area to avoid an inferior position or consolidation of opponent's score (NEW 2021) — results in penalty + 2 points to opponent"},
+];
+
+const IBJJF_POINTS = [
+  {action:"Takedown",points:2,desc:"Take opponent from standing to ground and achieve dominant position for 3 seconds."},
+  {action:"Sweep",points:2,desc:"From guard bottom, reverse positions so you end up on top for 3 seconds."},
+  {action:"Knee on Belly",points:2,desc:"Place knee on opponent's stomach/abdomen with control for 3 seconds."},
+  {action:"Guard Pass",points:3,desc:"Pass the guard and achieve side control, north-south or mount for 3 seconds."},
+  {action:"Mount",points:4,desc:"Achieve mount position and hold for 3 seconds."},
+  {action:"Back Control",points:4,desc:"Both hooks in or body triangle from the back for 3 seconds."},
+];
+
+const BELT_FILTER_OPTIONS = ["All","4-12","13-15","16-17","Blue-Purple","Brown-Black Gi","Brown-Black No-Gi"];
 
 const GAMEPLAN_SECTIONS = [
   {category:"🥋 Guard Game",positions:[
@@ -67,7 +194,7 @@ const GAMEPLAN_SECTIONS = [
     {pos:"Back Take Preference",ph:"e.g. From turtle, Arm drag from guard, Clock choke attempt..."},
     {pos:"Primary Finish from Back",ph:"e.g. Rear naked choke, Bow & arrow..."},
     {pos:"Body Position Preference",ph:"e.g. Body triangle preferred, Standard hooks if limited..."},
-    {pos:"If Opponent Takes My Back",ph:"e.g. Seat belt break, Roll to guard, Hip escape to half..."},
+    {pos:"If Opponent Takes My Back",ph:"e.g. Seat belt break, Roll to guard, Hip escape to hook side..."},
   ]},
   {category:"🤸 Standing & Takedowns",positions:[
     {pos:"Opening Strategy",ph:"e.g. Pull guard at 3 seconds, Snap down to single leg..."},
@@ -106,6 +233,43 @@ const fmtTime = s=>`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).p
 const todayStr = ()=>new Date().toISOString().split("T")[0];
 const dayName = d=>new Date(d).toLocaleDateString("en",{weekday:"short"});
 
+// ── Audio helpers ─────────────────────────────────────────────────────────────
+function useAudioContext() {
+  const acRef = useRef(null);
+  const getAC = () => {
+    if (!acRef.current) acRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    return acRef.current;
+  };
+  const playTone = useCallback((freq, duration, type="sine", volume=0.6, delay=0) => {
+    try {
+      const ac = getAC();
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.connect(gain); gain.connect(ac.destination);
+      osc.frequency.value = freq; osc.type = type;
+      const t = ac.currentTime + delay;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(volume, t + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+      osc.start(t); osc.stop(t + duration + 0.05);
+    } catch(e) {}
+  }, []);
+  // Round-end bell: three descending tones — warm, boxing-bell style
+  const playRoundEnd = useCallback((vol=0.6) => {
+    playTone(880, 0.5, "sine", vol, 0);
+    playTone(660, 0.6, "sine", vol*0.8, 0.18);
+    playTone(440, 0.9, "sine", vol*0.6, 0.4);
+  }, [playTone]);
+  // Round-start bell: ascending bright ding — crisp start signal
+  const playRoundStart = useCallback((vol=0.6) => {
+    playTone(523, 0.12, "triangle", vol*0.5, 0);
+    playTone(659, 0.12, "triangle", vol*0.7, 0.1);
+    playTone(784, 0.4, "triangle", vol, 0.22);
+    playTone(1046, 0.55, "sine", vol*0.85, 0.38);
+  }, [playTone]);
+  return { playRoundEnd, playRoundStart };
+}
+
 // ── Shared UI ─────────────────────────────────────────────────────────────────
 const Card = ({children,style={},onClick})=>(
   <div onClick={onClick} style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:"16px",marginBottom:10,boxShadow:T.shadow,cursor:onClick?"pointer":"default",...style}}>{children}</div>
@@ -119,6 +283,11 @@ const SectionTitle = ({children,sub})=>(
 const Pill = ({label,color=T.teal,bg=T.tealLight})=>(
   <span style={{background:bg,color,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700,fontFamily:"'JetBrains Mono'"}}>{label}</span>
 );
+const LevelPill = ({level})=>{
+  const map={Fundamental:{color:T.green,bg:T.greenLight},Intermediate:{color:T.teal,bg:T.tealLight},Advanced:{color:T.orange,bg:T.orangeLight}};
+  const s=map[level]||map.Fundamental;
+  return <Pill label={level} color={s.color} bg={s.bg}/>;
+};
 const StatBox = ({label,value,icon,color=T.teal,bg=T.tealLight})=>(
   <div style={{background:bg,borderRadius:14,padding:"14px 10px",flex:1,textAlign:"center",border:`1px solid ${color}22`}}>
     <div style={{fontSize:20}}>{icon}</div>
@@ -142,56 +311,45 @@ const Input = ({label,type="text",value,onChange,placeholder,required})=>(
   </div>
 );
 
-// ── AUTH SCREEN ───────────────────────────────────────────────────────────────
+// ── AUTH ──────────────────────────────────────────────────────────────────────
 function AuthScreen(){
-  const [mode,setMode]=useState("signin"); // signin | signup
+  const [mode,setMode]=useState("signin");
   const [email,setEmail]=useState("");
   const [password,setPassword]=useState("");
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState("");
   const [message,setMessage]=useState("");
-
   const handle=async()=>{
-    setError(""); setMessage(""); setLoading(true);
+    setError("");setMessage("");setLoading(true);
     if(mode==="signup"){
       const{error:e}=await supabase.auth.signUp({email,password});
-      if(e)setError(e.message);
-      else setMessage("Check your email to confirm your account, then sign in!");
-    } else {
+      if(e)setError(e.message);else setMessage("Check your email to confirm, then sign in!");
+    }else{
       const{error:e}=await supabase.auth.signInWithPassword({email,password});
       if(e)setError(e.message);
     }
     setLoading(false);
   };
-
   return(
     <div style={{minHeight:"100vh",background:T.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"24px 16px"}}>
       <div style={{width:"100%",maxWidth:380}}>
-        {/* Logo */}
         <div style={{textAlign:"center",marginBottom:32}}>
           <div style={{width:72,height:72,background:T.teal,borderRadius:20,display:"flex",alignItems:"center",justifyContent:"center",fontSize:36,margin:"0 auto 16px",boxShadow:`0 6px 24px ${T.teal}44`}}>🥋</div>
           <div style={{fontFamily:"'DM Serif Display'",fontSize:32,color:T.text}}>BJJ<span style={{color:T.teal}}>Pro</span></div>
           <div style={{fontSize:13,color:T.muted,marginTop:4}}>Your personal jiu-jitsu companion</div>
         </div>
-
         <Card style={{padding:"24px 20px"}}>
           <div style={{fontFamily:"'DM Serif Display'",fontSize:22,marginBottom:20}}>{mode==="signin"?"Welcome back":"Create account"}</div>
-
           <Input label="Email" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@email.com" required/>
           <Input label="Password" type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==="signup"?"At least 6 characters":""} required/>
-
           {error&&<div style={{background:"#fee2e2",border:"1px solid #fca5a5",borderRadius:8,padding:"10px 14px",fontSize:13,color:"#dc2626",marginBottom:14}}>{error}</div>}
           {message&&<div style={{background:T.greenLight,border:`1px solid ${T.green}44`,borderRadius:8,padding:"10px 14px",fontSize:13,color:T.green,marginBottom:14}}>{message}</div>}
-
           <Btn onClick={handle} disabled={loading||!email||!password} style={{width:"100%",padding:"14px",fontSize:15}}>
-            {loading?<span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><Spinner size={16} color="#fff"/> {mode==="signin"?"Signing in...":"Creating account..."}</span>
-              :mode==="signin"?"Sign In →":"Create Account →"}
+            {loading?<span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><Spinner size={16} color="#fff"/>{mode==="signin"?"Signing in...":"Creating account..."}</span>:mode==="signin"?"Sign In →":"Create Account →"}
           </Btn>
-
           <div style={{textAlign:"center",marginTop:16,fontSize:13,color:T.muted}}>
             {mode==="signin"?"Don't have an account?":"Already have an account?"}{" "}
-            <button onClick={()=>{setMode(mode==="signin"?"signup":"signin");setError("");setMessage("");}}
-              style={{background:"none",border:"none",color:T.teal,fontWeight:700,cursor:"pointer",fontSize:13}}>
+            <button onClick={()=>{setMode(mode==="signin"?"signup":"signin");setError("");setMessage("");}} style={{background:"none",border:"none",color:T.teal,fontWeight:700,cursor:"pointer",fontSize:13}}>
               {mode==="signin"?"Sign up":"Sign in"}
             </button>
           </div>
@@ -212,35 +370,48 @@ function TimerScreen(){
   const [running,setRunning]=useState(false);
   const [done,setDone]=useState(false);
   const [showSetup,setShowSetup]=useState(true);
+  const [volume,setVolume]=useState(0.6);
   const interval=useRef(null);
+  const justTransitioned=useRef(false);
+  const {playRoundEnd,playRoundStart}=useAudioContext();
 
   const reset=()=>{clearInterval(interval.current);setRunning(false);setCurrentRound(1);setIsRest(false);setTimeLeft(roundLen);setDone(false);setShowSetup(true);};
-  const start=()=>{setShowSetup(false);setTimeLeft(roundLen);setRunning(true);};
+  const start=()=>{setShowSetup(false);setTimeLeft(roundLen);setRunning(true);justTransitioned.current=false;};
 
   useEffect(()=>{
     if(!running){clearInterval(interval.current);return;}
     interval.current=setInterval(()=>{
       setTimeLeft(t=>{
         if(t<=1){
-          setIsRest(r=>{
-            if(!r){
-              setCurrentRound(cr=>{
-                if(cr>=rounds){setRunning(false);setDone(true);clearInterval(interval.current);return cr;}
-                return cr+1;
-              });
-              setTimeout(()=>setTimeLeft(restLen),0);return true;
-            }else{setTimeout(()=>setTimeLeft(roundLen),0);return false;}
-          });
+          if(!justTransitioned.current){
+            justTransitioned.current=true;
+            setIsRest(r=>{
+              if(!r){
+                playRoundEnd(volume);
+                setCurrentRound(cr=>{
+                  if(cr>=rounds){setRunning(false);setDone(true);clearInterval(interval.current);return cr;}
+                  return cr+1;
+                });
+                setTimeout(()=>{setTimeLeft(restLen);justTransitioned.current=false;},0);
+                return true;
+              }else{
+                playRoundStart(volume);
+                setTimeout(()=>{setTimeLeft(roundLen);justTransitioned.current=false;},0);
+                return false;
+              }
+            });
+          }
           return 0;
         }
         return t-1;
       });
     },1000);
     return()=>clearInterval(interval.current);
-  },[running,rounds,roundLen,restLen]);
+  },[running,rounds,roundLen,restLen,volume,playRoundEnd,playRoundStart]);
 
   const pct=isRest?(timeLeft/restLen)*100:(timeLeft/roundLen)*100;
   const r=80,circ=2*Math.PI*r;
+  const volIcon=volume===0?"🔇":volume<0.4?"🔈":volume<0.75?"🔉":"🔊";
 
   if(showSetup) return(
     <div style={{padding:"0 16px",animation:"fadeUp 0.4s ease"}}>
@@ -261,6 +432,21 @@ function TimerScreen(){
           </div>
         </Card>
       ))}
+
+      <Card>
+        <div style={{fontSize:12,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:12}}>🔔 Bell Volume</div>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+          <span style={{fontSize:18,flexShrink:0}}>{volIcon}</span>
+          <input type="range" min={0} max={1} step={0.05} value={volume} onChange={e=>setVolume(Number(e.target.value))}
+            style={{flex:1,accentColor:T.teal,cursor:"pointer",height:4}}/>
+          <span style={{fontFamily:"'JetBrains Mono'",fontSize:12,color:T.teal,fontWeight:600,minWidth:32,textAlign:"right"}}>{Math.round(volume*100)}%</span>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>playRoundEnd(volume)} style={{flex:1,background:T.cardAlt,border:`1.5px solid ${T.border}`,borderRadius:8,padding:"8px 0",fontSize:12,color:T.muted,cursor:"pointer",fontWeight:600}}>🔔 Test End Bell</button>
+          <button onClick={()=>playRoundStart(volume)} style={{flex:1,background:T.tealLight,border:`1.5px solid ${T.teal}33`,borderRadius:8,padding:"8px 0",fontSize:12,color:T.teal,cursor:"pointer",fontWeight:600}}>🔔 Test Start Bell</button>
+        </div>
+      </Card>
+
       <Card style={{background:T.tealLight,border:`1.5px solid ${T.teal}33`}}>
         <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
           <span style={{fontSize:13,color:T.muted}}>Total session time</span>
@@ -301,14 +487,20 @@ function TimerScreen(){
         </div>
       ):(
         <>
-          <div style={{display:"flex",gap:10,marginBottom:18}}>
+          <div style={{display:"flex",gap:10,marginBottom:16}}>
             <Btn onClick={()=>setRunning(r=>!r)} variant={running?"secondary":"primary"} style={{minWidth:130}}>{running?"⏸  Pause":"▶  Resume"}</Btn>
             <Btn onClick={reset} variant="ghost">Reset</Btn>
           </div>
-          <div style={{display:"flex",gap:6}}>
+          <div style={{display:"flex",gap:6,marginBottom:16}}>
             {Array.from({length:rounds}).map((_,i)=>(
               <div key={i} style={{width:10,height:10,borderRadius:"50%",background:i<currentRound-1?T.teal:i===currentRound-1?(isRest?T.orange:T.teal):T.border,opacity:i<currentRound-1?0.4:1}}/>
             ))}
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:10,background:T.cardAlt,borderRadius:12,padding:"10px 16px",border:`1px solid ${T.border}`,width:"100%"}}>
+            <span style={{fontSize:14,flexShrink:0}}>{volIcon}</span>
+            <input type="range" min={0} max={1} step={0.05} value={volume} onChange={e=>setVolume(Number(e.target.value))}
+              style={{flex:1,accentColor:T.teal,cursor:"pointer",height:4}}/>
+            <span style={{fontFamily:"'JetBrains Mono'",fontSize:11,color:T.muted,minWidth:28}}>{Math.round(volume*100)}%</span>
           </div>
         </>
       )}
@@ -319,24 +511,20 @@ function TimerScreen(){
 // ── TECHNIQUES ────────────────────────────────────────────────────────────────
 function TechniqueScreen({user}){
   const [activePos,setActivePos]=useState("Guard");
+  const [activeLevel,setActiveLevel]=useState("All");
   const [favs,setFavs]=useState({});
   const [expanded,setExpanded]=useState(null);
 
   useEffect(()=>{
     supabase.from("favourites").select("technique").eq("user_id",user.id)
-      .then(({data})=>{
-        if(data){const f={};data.forEach(r=>f[r.technique]=true);setFavs(f);}
-      });
+      .then(({data})=>{if(data){const f={};data.forEach(r=>f[r.technique]=true);setFavs(f);}});
   },[user.id]);
 
   const toggleFav=async(tech)=>{
     const isOn=!!favs[tech];
     setFavs(f=>({...f,[tech]:!isOn}));
-    if(isOn){
-      await supabase.from("favourites").delete().eq("user_id",user.id).eq("technique",tech);
-    } else {
-      await supabase.from("favourites").insert({user_id:user.id,technique:tech});
-    }
+    if(isOn){await supabase.from("favourites").delete().eq("user_id",user.id).eq("technique",tech);}
+    else{await supabase.from("favourites").insert({user_id:user.id,technique:tech});}
   };
 
   const ytUrl=tech=>`https://www.youtube.com/results?search_query=${encodeURIComponent("BJJ "+tech+" tutorial")}`;
@@ -348,33 +536,54 @@ function TechniqueScreen({user}){
     {name:"Gordon Ryan Technique",url:"https://www.youtube.com/results?search_query=Gordon+Ryan+BJJ+technique",tag:"Advanced"},
   ];
 
+  const allTechs=TECHNIQUES[activePos]||[];
+  const filtered=activeLevel==="All"?allTechs:allTechs.filter(t=>t.level===activeLevel);
+  const levelCounts={All:allTechs.length};
+  ["Fundamental","Intermediate","Advanced"].forEach(l=>{levelCounts[l]=allTechs.filter(t=>t.level===l).length;});
+
   return(
     <div style={{padding:"0 16px",animation:"fadeUp 0.4s ease"}}>
-      <SectionTitle sub="Browse techniques & watch tutorials">Technique Library</SectionTitle>
-      <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:8,marginBottom:14,scrollbarWidth:"none"}}>
+      <SectionTitle sub="Browse by position and skill level">Technique Library</SectionTitle>
+      <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:8,marginBottom:12,scrollbarWidth:"none"}}>
         {Object.keys(TECHNIQUES).map(p=>(
           <button key={p} onClick={()=>{setActivePos(p);setExpanded(null);}} style={{background:activePos===p?T.teal:T.surface,color:activePos===p?"#fff":T.muted,border:`1.5px solid ${activePos===p?T.teal:T.border}`,borderRadius:20,padding:"6px 14px",fontSize:12,cursor:"pointer",whiteSpace:"nowrap",fontWeight:700}}>{p}</button>
         ))}
       </div>
+      <div style={{display:"flex",gap:6,marginBottom:14}}>
+        {["All","Fundamental","Intermediate","Advanced"].map(l=>{
+          const isActive=activeLevel===l;
+          const colors={All:{c:T.text,bg:T.cardAlt},Fundamental:{c:T.green,bg:T.greenLight},Intermediate:{c:T.teal,bg:T.tealLight},Advanced:{c:T.orange,bg:T.orangeLight}};
+          const s=colors[l];
+          return(
+            <button key={l} onClick={()=>{setActiveLevel(l);setExpanded(null);}} style={{background:isActive?s.bg:"none",color:isActive?s.c:T.subtle,border:`1.5px solid ${isActive?s.c+"66":T.border}`,borderRadius:20,padding:"5px 10px",fontSize:11,cursor:"pointer",fontWeight:700,transition:"all 0.15s"}}>
+              {l} <span style={{opacity:0.7}}>({levelCounts[l]})</span>
+            </button>
+          );
+        })}
+      </div>
 
-      {TECHNIQUES[activePos].map(tech=>(
-        <Card key={tech} onClick={()=>setExpanded(expanded===tech?null:tech)} style={{borderColor:expanded===tech?T.teal:T.border,background:expanded===tech?T.tealLight:T.card,cursor:"pointer"}}>
+      {filtered.map(tech=>(
+        <Card key={tech.name} onClick={()=>setExpanded(expanded===tech.name?null:tech.name)} style={{borderColor:expanded===tech.name?T.teal:T.border,background:expanded===tech.name?T.tealLight:T.card,cursor:"pointer"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div>
-              <div style={{fontWeight:700,fontSize:15,color:T.text}}>{tech}</div>
-              <div style={{fontSize:11,color:T.muted,marginTop:2}}>{activePos}</div>
+            <div style={{flex:1}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
+                <div style={{fontWeight:700,fontSize:15,color:T.text}}>{tech.name}</div>
+                <LevelPill level={tech.level}/>
+              </div>
+              <div style={{fontSize:11,color:T.muted}}>{activePos}</div>
             </div>
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
-              <button onClick={e=>{e.stopPropagation();toggleFav(tech);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:favs[tech]?T.orange:T.subtle}}>★</button>
-              <span style={{color:T.muted,fontSize:13}}>{expanded===tech?"▲":"▼"}</span>
+              <button onClick={e=>{e.stopPropagation();toggleFav(tech.name);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:favs[tech.name]?T.orange:T.subtle}}>★</button>
+              <span style={{color:T.muted,fontSize:13}}>{expanded===tech.name?"▲":"▼"}</span>
             </div>
           </div>
-          {expanded===tech&&(
+          {expanded===tech.name&&(
             <div style={{marginTop:14,paddingTop:14,borderTop:`1px solid ${T.teal}33`,animation:"fadeUp 0.2s ease"}}>
-              <a href={ytUrl(tech)} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={{display:"flex",alignItems:"center",gap:10,background:"#fee2e244",border:"1.5px solid #fca5a544",borderRadius:12,padding:"12px 14px",textDecoration:"none",marginBottom:12}}>
+              {tech.desc&&<div style={{background:T.surface,borderRadius:10,padding:"10px 12px",marginBottom:12,fontSize:13,color:T.text,lineHeight:1.6,border:`1px solid ${T.border}`}}>{tech.desc}</div>}
+              <a href={ytUrl(tech.name)} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={{display:"flex",alignItems:"center",gap:10,background:"#fee2e244",border:"1.5px solid #fca5a544",borderRadius:12,padding:"12px 14px",textDecoration:"none",marginBottom:12}}>
                 <span style={{fontSize:26}}>▶️</span>
                 <div>
-                  <div style={{fontWeight:700,fontSize:13,color:T.text}}>Search "{tech}" on YouTube</div>
+                  <div style={{fontWeight:700,fontSize:13,color:T.text}}>Search "{tech.name}" on YouTube</div>
                   <div style={{fontSize:11,color:T.muted,marginTop:1}}>Opens YouTube · BJJ tutorials</div>
                 </div>
                 <span style={{marginLeft:"auto",color:T.muted,fontSize:14}}>→</span>
@@ -428,10 +637,15 @@ function JournalScreen({user}){
 
   useEffect(()=>{fetchEntries();},[user.id]);
 
+  const openAddForDate=(dateKey)=>{
+    setForm({date:dateKey,duration:60,type:"Open Mat",techniques:"",notes:"",learnings:""});
+    setAdding(true);
+  };
+
   const saveEntry=async()=>{
     setSaving(true);
-    const{data,error}=await supabase.from("journal_entries").insert({user_id:user.id,...form,duration:Number(form.duration)}).select().single();
-    if(data){setEntries(e=>[data,...e]);}
+    const{data}=await supabase.from("journal_entries").insert({user_id:user.id,...form,duration:Number(form.duration)}).select().single();
+    if(data)setEntries(e=>[data,...e].sort((a,b)=>b.date.localeCompare(a.date)));
     setSaving(false);setAdding(false);
     setForm({date:todayStr(),duration:60,type:"Open Mat",techniques:"",notes:"",learnings:""});
   };
@@ -444,7 +658,8 @@ function JournalScreen({user}){
   const last7=Array.from({length:7}).map((_,i)=>{
     const d=new Date();d.setDate(d.getDate()-6+i);
     const key=d.toISOString().split("T")[0];
-    return{key,label:dayName(key),trained:entries.some(e=>e.date===key)};
+    const count=entries.filter(e=>e.date===key).length;
+    return{key,label:dayName(key),trained:count>0,count};
   });
   const totalMins=entries.reduce((a,e)=>a+Number(e.duration||0),0);
 
@@ -458,20 +673,35 @@ function JournalScreen({user}){
       </div>
 
       <Card style={{background:T.cardAlt}}>
-        <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:10}}>Last 7 Days</div>
+        <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:4}}>Last 7 Days</div>
+        <div style={{fontSize:11,color:T.muted,marginBottom:10}}>Tap any day to log a session</div>
         <div style={{display:"flex",justifyContent:"space-between"}}>
-          {last7.map(d=>(
-            <div key={d.key} style={{textAlign:"center"}}>
-              <div style={{width:34,height:34,borderRadius:10,background:d.trained?T.teal:T.surface,border:`1.5px solid ${d.trained?T.teal:T.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,marginBottom:4,color:"#fff",fontWeight:700}}>{d.trained?"✓":""}</div>
-              <div style={{fontSize:10,color:T.muted,fontWeight:600}}>{d.label}</div>
-            </div>
-          ))}
+          {last7.map(d=>{
+            const isToday=d.key===todayStr();
+            return(
+              <div key={d.key} style={{textAlign:"center"}}>
+                <button onClick={()=>openAddForDate(d.key)} title={d.trained?`${d.count} session(s) — tap to add another`:"Tap to log"} style={{
+                  width:36,height:36,borderRadius:10,
+                  background:d.trained?T.teal:T.surface,
+                  border:`1.5px solid ${d.trained?T.teal:isToday?T.orange:T.border}`,
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  fontSize:14,marginBottom:4,
+                  color:d.trained?"#fff":isToday?T.orange:T.subtle,
+                  fontWeight:700,cursor:"pointer",
+                  boxShadow:isToday?`0 0 0 2px ${T.orange}44`:"none",
+                  transition:"all 0.15s",
+                }}>
+                  {d.trained?"✓":"＋"}
+                </button>
+                <div style={{fontSize:10,color:isToday?T.orange:T.muted,fontWeight:isToday?700:600}}>{d.label}</div>
+              </div>
+            );
+          })}
         </div>
       </Card>
 
-      <Btn onClick={()=>setAdding(true)} style={{width:"100%",padding:"14px",fontSize:15,marginBottom:14,marginTop:2}}>+ Log Today's Session</Btn>
+      <Btn onClick={()=>{setForm({date:todayStr(),duration:60,type:"Open Mat",techniques:"",notes:"",learnings:""});setAdding(true);}} style={{width:"100%",padding:"14px",fontSize:15,marginBottom:14,marginTop:2}}>+ Log Today's Session</Btn>
 
-      {/* Add session sheet */}
       {adding&&(
         <div style={{position:"fixed",inset:0,background:"rgba(30,45,64,0.5)",zIndex:100,display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
           <div style={{background:T.bg,borderRadius:"20px 20px 0 0",padding:"20px 16px 36px",maxHeight:"92vh",overflowY:"auto",animation:"slideUp 0.35s ease"}}>
@@ -514,7 +744,6 @@ function JournalScreen({user}){
       )}
 
       {loading&&<div style={{display:"flex",justifyContent:"center",padding:"40px 0"}}><Spinner size={32}/></div>}
-
       {!loading&&entries.length===0&&(
         <div style={{textAlign:"center",color:T.muted,padding:"40px 0"}}>
           <div style={{fontSize:40,marginBottom:10}}>📓</div>
@@ -522,7 +751,6 @@ function JournalScreen({user}){
           <div style={{fontSize:13}}>Start logging your journey on the mats!</div>
         </div>
       )}
-
       {entries.map(e=>(
         <Card key={e.id}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
@@ -547,6 +775,130 @@ function JournalScreen({user}){
   );
 }
 
+// ── IBJJF RULES ───────────────────────────────────────────────────────────────
+function IBJJFRulesScreen(){
+  const [rulesTab,setRulesTab]=useState("illegal");
+  const [beltFilter,setBeltFilter]=useState("All");
+  const [search,setSearch]=useState("");
+
+  const matchesBelt=(m)=>{
+    if(beltFilter==="All")return true;
+    return m.belts.includes(beltFilter);
+  };
+
+  const filteredMoves=IBJJF_ILLEGAL_MOVES.filter(m=>{
+    const bOk=matchesBelt(m);
+    const sOk=!search||m.name.toLowerCase().includes(search.toLowerCase());
+    return bOk&&sOk;
+  });
+
+  return(
+    <div style={{animation:"fadeUp 0.3s ease"}}>
+      <div style={{display:"flex",background:T.surface,borderRadius:12,padding:4,marginBottom:14,border:`1px solid ${T.border}`}}>
+        {[["illegal","⛔ Illegal"],["fouls","🚨 Fouls"],["points","🏅 Scoring"]].map(([t,l])=>(
+          <button key={t} onClick={()=>setRulesTab(t)} style={{flex:1,padding:"9px 0",background:rulesTab===t?T.teal:"none",color:rulesTab===t?"#fff":T.muted,border:"none",borderRadius:10,fontWeight:700,fontSize:12,cursor:"pointer",transition:"all 0.2s"}}>{l}</button>
+        ))}
+      </div>
+
+      {rulesTab==="illegal"&&(
+        <div>
+          <div style={{background:"#fef3c7",border:"1px solid #f59e0b44",borderRadius:12,padding:"12px 14px",marginBottom:12}}>
+            <div style={{fontSize:12,color:"#92400e",fontWeight:700,marginBottom:4}}>⚠️ 2021 IBJJF Rules Update</div>
+            <div style={{fontSize:11,color:"#92400e",lineHeight:1.6}}>Red badges show which divisions each move is illegal in. Moves not listed are legal for that division. Always verify rules with the current official IBJJF rulebook.</div>
+          </div>
+          <div style={{marginBottom:10}}>
+            <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8}}>Filter by Division</div>
+            <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:4,scrollbarWidth:"none"}}>
+              {BELT_FILTER_OPTIONS.map(b=>(
+                <button key={b} onClick={()=>setBeltFilter(b)} style={{background:beltFilter===b?T.teal:T.surface,color:beltFilter===b?"#fff":T.muted,border:`1.5px solid ${beltFilter===b?T.teal:T.border}`,borderRadius:20,padding:"5px 12px",fontSize:11,cursor:"pointer",whiteSpace:"nowrap",fontWeight:700}}>{b}</button>
+              ))}
+            </div>
+          </div>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search techniques..." style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 14px",color:T.text,fontSize:13,outline:"none",marginBottom:10}}/>
+          <div style={{fontSize:12,color:T.muted,marginBottom:10}}>{filteredMoves.length} moves shown</div>
+          {filteredMoves.map(m=>(
+            <Card key={m.id} style={{padding:"12px 14px",borderLeft:m.severity==="severe"?`4px solid #dc2626`:`4px solid ${T.orange}`}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,flexWrap:"wrap"}}>
+                <span style={{fontFamily:"'JetBrains Mono'",fontSize:10,color:T.muted,fontWeight:700}}>#{m.id}</span>
+                {m.severity==="severe"&&<Pill label="SEVERE FOUL" color="#dc2626" bg="#fee2e2"/>}
+              </div>
+              <div style={{fontWeight:600,fontSize:13,color:T.text,lineHeight:1.5,marginBottom:8}}>{m.name}</div>
+              {m.note&&<div style={{fontSize:11,color:T.teal,fontStyle:"italic",marginBottom:6}}>ℹ️ {m.note}</div>}
+              <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                {m.belts.map(b=>(
+                  <span key={b} style={{background:"#fee2e2",color:"#dc2626",borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700}}>{b}</span>
+                ))}
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {rulesTab==="fouls"&&(
+        <div>
+          <div style={{background:"#fef3c7",border:"1px solid #f59e0b44",borderRadius:12,padding:"12px 14px",marginBottom:12}}>
+            <div style={{fontSize:12,color:"#92400e",fontWeight:700,marginBottom:4}}>🚨 Serious Fouls — All Divisions</div>
+            <div style={{fontSize:11,color:"#92400e",lineHeight:1.6}}>Any serious foul results in immediate disqualification, regardless of belt level or age group.</div>
+          </div>
+          <Card style={{background:"#fff5f5",border:`1.5px solid #fca5a544`,marginBottom:10,padding:"14px"}}>
+            <div style={{fontSize:11,color:"#dc2626",fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8}}>🆕 New 2021 — Rule M: Fleeing the Fight Area</div>
+            <div style={{fontSize:13,color:T.text,fontWeight:600,marginBottom:6}}>Deliberately running away to avoid inferior position</div>
+            <div style={{fontSize:12,color:T.muted,lineHeight:1.7,marginBottom:10}}>When an athlete deliberately runs away from the fight area to avoid an inferior position or consolidation of the opponent's score, the referee must apply both consequences simultaneously:</div>
+            <div style={{display:"flex",gap:8,marginBottom:8}}>
+              <div style={{flex:1,background:"#fee2e2",border:"1px solid #fca5a5",borderRadius:10,padding:"10px",textAlign:"center"}}>
+                <div style={{fontSize:11,color:"#dc2626",fontWeight:700,marginBottom:4}}>PENALTY</div>
+                <div style={{fontSize:12,color:"#dc2626"}}>Marked against fleeing athlete (follows sequence)</div>
+              </div>
+              <div style={{flex:1,background:T.tealLight,border:`1px solid ${T.teal}33`,borderRadius:10,padding:"10px",textAlign:"center"}}>
+                <div style={{fontSize:11,color:T.teal,fontWeight:700,marginBottom:4}}>+2 POINTS</div>
+                <div style={{fontSize:12,color:T.teal}}>Awarded to opponent immediately</div>
+              </div>
+            </div>
+          </Card>
+          {IBJJF_SERIOUS_FOULS.map(f=>(
+            <Card key={f.label} style={{padding:"12px 14px",borderLeft:`4px solid #dc2626`}}>
+              <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+                <span style={{background:"#fee2e2",color:"#dc2626",borderRadius:6,padding:"3px 9px",fontSize:12,fontWeight:800,fontFamily:"'JetBrains Mono'",flexShrink:0}}>{f.label}</span>
+                <span style={{fontSize:13,color:T.text,lineHeight:1.5}}>{f.desc}</span>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {rulesTab==="points"&&(
+        <div>
+          <div style={{background:T.tealLight,border:`1px solid ${T.teal}33`,borderRadius:12,padding:"12px 14px",marginBottom:12}}>
+            <div style={{fontSize:12,color:T.teal,fontWeight:700,marginBottom:4}}>🏅 IBJJF Scoring — All positions held for 3 seconds</div>
+            <div style={{fontSize:11,color:T.teal,lineHeight:1.6}}>Advantages are awarded for near-scoring positions and near-finish submission attempts. On a points tie, advantages decide the winner.</div>
+          </div>
+          {IBJJF_POINTS.map(p=>(
+            <Card key={p.action} style={{padding:"14px",borderLeft:`4px solid ${T.teal}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                <div style={{fontWeight:700,fontSize:15,color:T.text}}>{p.action}</div>
+                <div style={{background:T.teal,color:"#fff",borderRadius:10,padding:"4px 14px",fontFamily:"'JetBrains Mono'",fontWeight:800,fontSize:20}}>{p.points}</div>
+              </div>
+              <div style={{fontSize:12,color:T.muted,lineHeight:1.6}}>{p.desc}</div>
+            </Card>
+          ))}
+          <Card style={{background:T.cardAlt,border:`1.5px solid ${T.border}`}}>
+            <div style={{fontSize:12,color:T.orange,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:10}}>📋 Knee Reaping Definition (2021)</div>
+            <div style={{fontSize:12,color:T.text,lineHeight:1.7,marginBottom:10}}>Knee reaping is when an athlete places their thigh behind the opponent's leg and passes their calf on top of the opponent's body above the knee, placing their foot beyond the vertical midline of the opponent's body while applying pressure on the knee from outside to inside, with the foot of the leg at risk trapped between the hip and armpit.</div>
+            <div style={{background:T.tealLight,borderRadius:8,padding:"10px"}}>
+              <div style={{fontSize:11,color:T.teal,fontWeight:700,marginBottom:4}}>50/50 Guard Rule</div>
+              <div style={{fontSize:11,color:T.text,lineHeight:1.6}}>When turning inside from 50/50 guard — if the opponent has their foot stepping on the ground at the start of the turn, that foot is considered trapped.</div>
+            </div>
+            <div style={{marginTop:8,background:"#f0fdf4",borderRadius:8,padding:"10px"}}>
+              <div style={{fontSize:11,color:T.green,fontWeight:700,marginBottom:4}}>Brown & Black Belt Exception</div>
+              <div style={{fontSize:11,color:T.text,lineHeight:1.6}}>At brown/black belt level, the referee will NOT interrupt the fight for knee reaping situations. No penalty applied.</div>
+            </div>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── COMPETITION ───────────────────────────────────────────────────────────────
 function CompScreen({user}){
   const [tab,setTab]=useState("gameplan");
@@ -557,7 +909,11 @@ function CompScreen({user}){
   const [addComp,setAddComp]=useState(false);
   const [compForm,setCompForm]=useState({name:"",date:"",weight:"",gi:"Gi",goal:"",notes:""});
   const [openCat,setOpenCat]=useState(GAMEPLAN_SECTIONS[0].category);
+  const [aiEvents,setAiEvents]=useState([]);
+  const [aiLoading,setAiLoading]=useState(false);
+  const [aiError,setAiError]=useState("");
   const saveTimer=useRef({});
+  const hasFetched=useRef(false);
 
   useEffect(()=>{
     supabase.from("game_plan").select("*").eq("user_id",user.id).then(({data})=>{
@@ -569,7 +925,37 @@ function CompScreen({user}){
     });
   },[user.id]);
 
-  // Debounced save for game plan
+  useEffect(()=>{
+    if(tab==="comps"&&!hasFetched.current){
+      hasFetched.current=true;
+      fetchAucklandEvents();
+    }
+  },[tab]);
+
+  const fetchAucklandEvents=async()=>{
+    setAiLoading(true);setAiError("");
+    try{
+      const res=await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          model:"claude-sonnet-4-20250514",
+          max_tokens:1000,
+          tools:[{type:"web_search_20250305",name:"web_search"}],
+          messages:[{role:"user",content:`Search for upcoming BJJ and Brazilian jiu-jitsu competitions and tournaments in Auckland New Zealand and wider New Zealand in 2025 2026. Return ONLY a JSON array with no markdown, no preamble, no explanation. Each object must have: name, date, location, organizer, gi_nogi, url. Up to 8 events. Include events from NZBJJ, AJP NZ, Grappling Industries NZ, IBJJF, and local Auckland clubs.`}]
+        })
+      });
+      const data=await res.json();
+      const text=(data.content||[]).map(c=>c.text||"").join("");
+      const start=text.indexOf("["),end=text.lastIndexOf("]")+1;
+      if(start>=0&&end>start){
+        try{setAiEvents(JSON.parse(text.slice(start,end)));}
+        catch{setAiError("Could not parse event data.");}
+      }else{setAiError("No events found. Try refreshing.");}
+    }catch{setAiError("Network error. Check your connection.");}
+    setAiLoading(false);
+  };
+
   const saveGp=(pos,val)=>{
     setGameplan(g=>({...g,[pos]:val}));
     clearTimeout(saveTimer.current[pos]);
@@ -597,8 +983,8 @@ function CompScreen({user}){
     <div style={{padding:"0 16px",animation:"fadeUp 0.4s ease"}}>
       <SectionTitle sub="Plan, prepare, and compete with confidence">Competition Prep</SectionTitle>
       <div style={{display:"flex",background:T.surface,borderRadius:12,padding:4,marginBottom:16,border:`1px solid ${T.border}`}}>
-        {[["gameplan","🗺 Game Plan"],["comps","🏆 Events"]].map(([t,l])=>(
-          <button key={t} onClick={()=>setTab(t)} style={{flex:1,padding:"10px 0",background:tab===t?T.teal:"none",color:tab===t?"#fff":T.muted,border:"none",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>{l}</button>
+        {[["gameplan","🗺 Game Plan"],["comps","🏆 Events"],["rules","📋 IBJJF Rules"]].map(([t,l])=>(
+          <button key={t} onClick={()=>setTab(t)} style={{flex:1,padding:"10px 0",background:tab===t?T.teal:"none",color:tab===t?"#fff":T.muted,border:"none",borderRadius:10,fontWeight:700,fontSize:11,cursor:"pointer",transition:"all 0.2s"}}>{l}</button>
         ))}
       </div>
 
@@ -614,9 +1000,8 @@ function CompScreen({user}){
                 <div style={{background:T.surface,borderRadius:8,height:8,overflow:"hidden"}}>
                   <div style={{height:"100%",width:`${pct}%`,background:T.teal,borderRadius:8,transition:"width 0.5s ease"}}/>
                 </div>
-                <div style={{fontSize:11,color:T.muted,marginTop:6}}>{filledCount} of {totalFields} positions filled in · Auto-saves as you type</div>
+                <div style={{fontSize:11,color:T.muted,marginTop:6}}>{filledCount} of {totalFields} positions filled · Auto-saves as you type</div>
               </Card>
-
               {GAMEPLAN_SECTIONS.map(section=>{
                 const filled=section.positions.filter(p=>gameplan[p.pos]?.trim()).length;
                 const isOpen=openCat===section.category;
@@ -650,7 +1035,41 @@ function CompScreen({user}){
 
       {tab==="comps"&&(
         <div>
-          <Btn onClick={()=>setAddComp(true)} style={{width:"100%",padding:"13px",fontSize:14,marginBottom:12}}>+ Add Competition</Btn>
+          <div style={{background:T.tealLight,border:`1.5px solid ${T.teal}33`,borderRadius:14,padding:"14px",marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color:T.teal}}>🗺 Auckland & NZ Events</div>
+                <div style={{fontSize:11,color:T.muted,marginTop:2}}>AI-fetched upcoming competitions</div>
+              </div>
+              <button onClick={()=>{hasFetched.current=false;fetchAucklandEvents();}} disabled={aiLoading} style={{background:T.teal,color:"#fff",border:"none",borderRadius:8,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",opacity:aiLoading?0.6:1}}>
+                {aiLoading?<Spinner size={14} color="#fff"/>:"↺ Refresh"}
+              </button>
+            </div>
+            {aiLoading&&<div style={{display:"flex",justifyContent:"center",padding:"20px 0"}}><Spinner size={28}/></div>}
+            {aiError&&<div style={{fontSize:12,color:"#dc2626",padding:"8px 0",textAlign:"center"}}>{aiError}</div>}
+            {!aiLoading&&aiEvents.length===0&&!aiError&&(
+              <div style={{fontSize:12,color:T.muted,textAlign:"center",padding:"12px 0"}}>Tap Refresh to search for upcoming events.</div>
+            )}
+            {aiEvents.map((ev,i)=>(
+              <div key={i} style={{background:T.surface,borderRadius:10,padding:"10px 12px",marginBottom:8,border:`1px solid ${T.border}`}}>
+                <div style={{fontWeight:700,fontSize:13,color:T.text,marginBottom:4}}>{ev.name||"Unnamed Event"}</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:4}}>
+                  {ev.date&&<Pill label={ev.date}/>}
+                  {ev.gi_nogi&&<Pill label={ev.gi_nogi} color={T.orange} bg={T.orangeLight}/>}
+                </div>
+                {ev.location&&<div style={{fontSize:11,color:T.muted}}>📍 {ev.location}</div>}
+                {ev.organizer&&<div style={{fontSize:11,color:T.muted,marginTop:2}}>🏢 {ev.organizer}</div>}
+                {ev.url&&ev.url!=="N/A"&&ev.url.startsWith("http")&&(
+                  <a href={ev.url} target="_blank" rel="noreferrer" style={{display:"inline-block",marginTop:6,fontSize:11,color:T.teal,fontWeight:700,textDecoration:"none"}}>View Details →</a>
+                )}
+              </div>
+            ))}
+            <div style={{marginTop:6,paddingTop:8,borderTop:`1px solid ${T.border}`}}>
+              <div style={{fontSize:10,color:T.muted,lineHeight:1.6}}>Always verify dates directly with the organiser. Key NZ orgs: <span style={{fontWeight:700}}>NZBJJ · AJP NZ · Grappling Industries NZ</span></div>
+            </div>
+          </div>
+
+          <Btn onClick={()=>setAddComp(true)} style={{width:"100%",padding:"13px",fontSize:14,marginBottom:12}}>+ Add Competition Manually</Btn>
           {addComp&&(
             <Card style={{border:`1.5px solid ${T.teal}`,background:T.tealLight}}>
               <div style={{fontFamily:"'DM Serif Display'",fontSize:20,marginBottom:14}}>New Competition</div>
@@ -678,13 +1097,9 @@ function CompScreen({user}){
               </div>
             </Card>
           )}
-          {compsLoading&&<div style={{display:"flex",justifyContent:"center",padding:"40px 0"}}><Spinner size={32}/></div>}
+          {compsLoading&&<div style={{display:"flex",justifyContent:"center",padding:"20px 0"}}><Spinner size={32}/></div>}
           {!compsLoading&&comps.length===0&&!addComp&&(
-            <div style={{textAlign:"center",color:T.muted,padding:"40px 0"}}>
-              <div style={{fontSize:40,marginBottom:10}}>🏆</div>
-              <div style={{fontFamily:"'DM Serif Display'",fontSize:20,color:T.text,marginBottom:4}}>No competitions yet</div>
-              <div style={{fontSize:13}}>Add your next event and start planning!</div>
-            </div>
+            <div style={{textAlign:"center",color:T.muted,padding:"16px 0",fontSize:13}}>No personal competitions added yet.</div>
           )}
           {comps.map(c=>{
             const daysUntil=Math.ceil((new Date(c.date)-new Date())/86400000);
@@ -710,6 +1125,8 @@ function CompScreen({user}){
           })}
         </div>
       )}
+
+      {tab==="rules"&&<IBJJFRulesScreen/>}
     </div>
   );
 }
@@ -744,7 +1161,6 @@ function HomeScreen({user,setTab,onSignOut}){
   const lastEntry=entries[0];
   const hour=new Date().getHours();
   const greeting=hour<12?"Good morning":hour<17?"Good afternoon":"Good evening";
-
   const actions=[
     {icon:"⏱",label:"Sparring Timer",sub:"Set up rounds",action:()=>setTab("timer"),color:T.teal,bg:T.tealLight},
     {icon:"📓",label:"Log Session",sub:"Record training",action:()=>setTab("journal"),color:T.orange,bg:T.orangeLight},
@@ -754,14 +1170,11 @@ function HomeScreen({user,setTab,onSignOut}){
 
   return(
     <div style={{padding:"0 16px",animation:"fadeUp 0.4s ease"}}>
-      {/* Profile header */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,padding:"16px",background:T.teal,borderRadius:18,boxShadow:`0 4px 20px ${T.teal}44`}}>
         <div>
           <div style={{fontSize:12,color:"rgba(255,255,255,0.7)",fontWeight:600,marginBottom:2}}>{greeting} 👋</div>
           <div style={{fontFamily:"'DM Serif Display'",fontSize:26,color:"#fff",lineHeight:1}}>{profile.name}</div>
-          <div style={{marginTop:6,display:"flex",gap:8,alignItems:"center"}}>
-            <span style={{background:BELT_COLORS[profile.belt],color:BELT_TEXT[profile.belt],borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}>{profile.belt} Belt</span>
-          </div>
+          <div style={{marginTop:6}}><span style={{background:BELT_COLORS[profile.belt],color:BELT_TEXT[profile.belt],borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}>{profile.belt} Belt</span></div>
         </div>
         <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
           <div style={{width:52,height:52,borderRadius:"50%",background:"rgba(255,255,255,0.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,border:"2px solid rgba(255,255,255,0.3)"}}>🥋</div>
@@ -795,7 +1208,6 @@ function HomeScreen({user,setTab,onSignOut}){
             <StatBox label="Total Hours" value={totalHours} icon="⏱" color={T.orange} bg={T.orangeLight}/>
             <StatBox label="Sessions" value={entries.length} icon="🥋" color={T.green} bg={T.greenLight}/>
           </div>
-
           <div style={{fontFamily:"'DM Serif Display'",fontSize:18,color:T.text,marginBottom:10}}>Quick Actions</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
             {actions.map(a=>(
@@ -808,7 +1220,6 @@ function HomeScreen({user,setTab,onSignOut}){
               </button>
             ))}
           </div>
-
           {lastEntry&&(
             <>
               <div style={{fontFamily:"'DM Serif Display'",fontSize:18,color:T.text,marginBottom:10}}>Last Session</div>
@@ -827,7 +1238,6 @@ function HomeScreen({user,setTab,onSignOut}){
               </Card>
             </>
           )}
-
           <div style={{background:`linear-gradient(135deg,${T.tealLight},${T.surface})`,border:`1px solid ${T.teal}22`,borderRadius:14,padding:"16px",textAlign:"center",marginTop:4,marginBottom:8}}>
             <div style={{fontFamily:"'DM Serif Display'",fontStyle:"italic",fontSize:16,color:T.teal,lineHeight:1.5}}>"A black belt is just a white belt who never quit."</div>
           </div>
@@ -837,59 +1247,40 @@ function HomeScreen({user,setTab,onSignOut}){
   );
 }
 
-// ── ROOT APP ──────────────────────────────────────────────────────────────────
+// ── ROOT ──────────────────────────────────────────────────────────────────────
 export default function BJJApp(){
-  const [session,setSession]=useState(undefined); // undefined=loading, null=no session
+  const [session,setSession]=useState(undefined);
   const [tab,setTab]=useState("home");
-
   useEffect(()=>{
-    const s=document.createElement("style");
-    s.textContent=GLOBAL_CSS;
-    document.head.appendChild(s);
+    const s=document.createElement("style");s.textContent=GLOBAL_CSS;document.head.appendChild(s);
     return()=>document.head.removeChild(s);
   },[]);
-
   useEffect(()=>{
     supabase.auth.getSession().then(({data:{session}})=>setSession(session));
-    const {data:{subscription}}=supabase.auth.onAuthStateChange((_,session)=>setSession(session));
+    const{data:{subscription}}=supabase.auth.onAuthStateChange((_,session)=>setSession(session));
     return()=>subscription.unsubscribe();
   },[]);
-
   const signOut=async()=>{await supabase.auth.signOut();setTab("home");};
-
-  // Loading state while checking session
-  if(session===undefined) return(
+  if(session===undefined)return(
     <div style={{minHeight:"100vh",background:T.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16}}>
-      <Spinner size={40}/>
-      <div style={{fontFamily:"'DM Serif Display'",fontSize:20,color:T.muted}}>Loading BJJPro...</div>
+      <Spinner size={40}/><div style={{fontFamily:"'DM Serif Display'",fontSize:20,color:T.muted}}>Loading BJJPro...</div>
     </div>
   );
-
-  if(!session) return <AuthScreen/>;
-
-  const tabs=[
-    {id:"home",icon:"⊞",label:"Home"},
-    {id:"timer",icon:"⏱",label:"Timer"},
-    {id:"techniques",icon:"📚",label:"Techniques"},
-    {id:"journal",icon:"📓",label:"Journal"},
-    {id:"comp",icon:"🏆",label:"Compete"},
-  ];
-
+  if(!session)return<AuthScreen/>;
+  const tabs=[{id:"home",icon:"⊞",label:"Home"},{id:"timer",icon:"⏱",label:"Timer"},{id:"techniques",icon:"📚",label:"Techniques"},{id:"journal",icon:"📓",label:"Journal"},{id:"comp",icon:"🏆",label:"Compete"}];
   return(
     <div style={{maxWidth:430,margin:"0 auto",minHeight:"100vh",background:T.bg,display:"flex",flexDirection:"column"}}>
       <div style={{background:T.surface,borderBottom:`1px solid ${T.border}`,padding:"12px 16px 10px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50,boxShadow:"0 1px 8px rgba(30,45,64,0.07)"}}>
         <div style={{fontFamily:"'DM Serif Display'",fontSize:22,color:T.text}}>BJJ<span style={{color:T.teal}}>Pro</span></div>
         <div style={{fontSize:11,color:T.muted,fontFamily:"'JetBrains Mono'",fontWeight:600}}>{new Date().toLocaleDateString("en",{weekday:"short",month:"short",day:"numeric"})}</div>
       </div>
-
       <div style={{flex:1,overflowY:"auto",paddingTop:16,paddingBottom:80}}>
-        {tab==="home"       &&<HomeScreen user={session.user} setTab={setTab} onSignOut={signOut}/>}
-        {tab==="timer"      &&<TimerScreen/>}
-        {tab==="techniques" &&<TechniqueScreen user={session.user}/>}
-        {tab==="journal"    &&<JournalScreen user={session.user}/>}
-        {tab==="comp"       &&<CompScreen user={session.user}/>}
+        {tab==="home"&&<HomeScreen user={session.user} setTab={setTab} onSignOut={signOut}/>}
+        {tab==="timer"&&<TimerScreen/>}
+        {tab==="techniques"&&<TechniqueScreen user={session.user}/>}
+        {tab==="journal"&&<JournalScreen user={session.user}/>}
+        {tab==="comp"&&<CompScreen user={session.user}/>}
       </div>
-
       <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:T.surface,borderTop:`1px solid ${T.border}`,display:"flex",zIndex:50,boxShadow:"0 -2px 12px rgba(30,45,64,0.08)"}}>
         {tabs.map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,padding:"10px 0 12px",background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderTop:tab===t.id?`2.5px solid ${T.teal}`:"2.5px solid transparent"}}>
