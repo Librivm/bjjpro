@@ -975,6 +975,8 @@ function JournalScreen({user}){
   const [goalInput,setGoalInput]=useState(3);
   const [savingGoal,setSavingGoal]=useState(false);
   const [editingGoal,setEditingGoal]=useState(false);
+  const [confirmDelEntry,setConfirmDelEntry]=useState(null);
+  const [viewEntry,setViewEntry]=useState(null); // entry being viewed/edited
 
   // Mon–Sun week containing a given YYYY-MM-DD string
   const getWeekKey=(dateStr)=>{
@@ -1059,11 +1061,26 @@ function JournalScreen({user}){
   };
 
   const delEntry=async(id)=>{
+    if(confirmDelEntry!==id){
+      setConfirmDelEntry(id);
+      setTimeout(()=>setConfirmDelEntry(null),3000);
+      return;
+    }
     const{error}=await supabase.from("journal_entries").delete().eq("id",id);
     if(error){console.error("Failed to delete entry:",error.message);return;}
     const updated=entries.filter(x=>x.id!==id);
     setEntries(updated);
     setStreak(calcStreak(updated,weeklyGoal));
+    setConfirmDelEntry(null);
+    setViewEntry(null);
+  };
+
+  const updateEntry=async(id,fields)=>{
+    const{error}=await supabase.from("journal_entries").update(fields).eq("id",id);
+    if(error){console.error("Failed to update entry:",error.message);return;}
+    const updated=entries.map(x=>x.id===id?{...x,...fields}:x);
+    setEntries(updated);
+    setViewEntry(v=>v&&v.id===id?{...v,...fields}:v);
   };
 
   // Sessions this week (Mon–Sun)
@@ -1179,18 +1196,139 @@ function JournalScreen({user}){
       {loading&&<div style={{display:"flex",justifyContent:"center",padding:"40px 0"}}><Spinner size={32}/></div>}
       {!loading&&entries.length===0&&<div style={{textAlign:"center",color:T.muted,padding:"40px 0"}}><div style={{fontSize:40,marginBottom:10}}>📓</div><div style={{fontFamily:"'DM Serif Display'",fontSize:20,color:T.text,marginBottom:4}}>No sessions yet</div><div style={{fontSize:13}}>Start logging your journey on the mats!</div></div>}
       {entries.map(e=>(
-        <Card key={e.id}>
+        <Card key={e.id} onClick={()=>setViewEntry(e)} style={{cursor:"pointer"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
             <div style={{flex:1}}>
               <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:6,flexWrap:"wrap"}}><Pill label={e.type}/><span style={{fontSize:11,color:T.muted,fontFamily:"'JetBrains Mono'"}}>{e.date}</span><span style={{fontSize:11,color:T.muted}}>· {e.duration} min</span></div>
-              {e.learnings&&<div style={{background:T.tealLight,border:`1px solid ${T.teal}33`,borderRadius:8,padding:"8px 10px",marginBottom:6}}><div style={{fontSize:10,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:2}}>💡 Key Learnings</div><div style={{fontSize:12,color:T.text,lineHeight:1.6}}>{e.learnings}</div></div>}
-              {e.techniques&&<div style={{fontSize:12,color:T.muted,marginBottom:2}}><span style={{color:T.text,fontWeight:600}}>Drilled: </span>{e.techniques}</div>}
-              {e.notes&&<div style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>{e.notes}</div>}
+              {e.learnings&&<div style={{background:T.tealLight,border:`1px solid ${T.teal}33`,borderRadius:8,padding:"8px 10px",marginBottom:6}}><div style={{fontSize:10,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:2}}>💡 Key Learnings</div><div style={{fontSize:12,color:T.text,lineHeight:1.6}}>{e.learnings.slice(0,120)}{e.learnings.length>120?"...":""}</div></div>}
+              {e.techniques&&<div style={{fontSize:12,color:T.muted,marginBottom:2}}><span style={{color:T.text,fontWeight:600}}>Drilled: </span>{e.techniques.slice(0,80)}{e.techniques.length>80?"...":""}</div>}
+              {e.notes&&<div style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>{e.notes.slice(0,80)}{e.notes.length>80?"...":""}</div>}
             </div>
-            <button onClick={()=>delEntry(e.id)} style={{background:"none",border:"none",color:T.subtle,cursor:"pointer",fontSize:16,marginLeft:8,flexShrink:0}}>✕</button>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6,marginLeft:8,flexShrink:0}}>
+              <button onClick={ev=>{ev.stopPropagation();delEntry(e.id);}}
+                style={{background:confirmDelEntry===e.id?"#fee2e2":"none",border:confirmDelEntry===e.id?"1px solid #fca5a5":"none",borderRadius:8,color:confirmDelEntry===e.id?"#dc2626":T.subtle,cursor:"pointer",fontSize:confirmDelEntry===e.id?10:16,fontWeight:700,padding:confirmDelEntry===e.id?"4px 7px":"0",whiteSpace:"nowrap",transition:"all 0.15s"}}>
+                {confirmDelEntry===e.id?"Sure?":"✕"}
+              </button>
+              <span style={{fontSize:11,color:T.muted}}>→</span>
+            </div>
           </div>
         </Card>
       ))}
+
+      {/* ── Entry detail / edit modal ── */}
+      {viewEntry&&<JournalEntryModal entry={viewEntry} onClose={()=>setViewEntry(null)} onSave={updateEntry} onDelete={delEntry} confirmDel={confirmDelEntry}/>}
+    </div>
+  );
+}
+
+// ── JOURNAL ENTRY MODAL ───────────────────────────────────────────────────────
+function JournalEntryModal({entry,onClose,onSave,onDelete,confirmDel}){
+  const [editing,setEditing]=useState(false);
+  const [form,setForm]=useState({
+    date:entry.date,duration:entry.duration,type:entry.type,
+    techniques:entry.techniques||"",notes:entry.notes||"",learnings:entry.learnings||""
+  });
+  const [saving,setSaving]=useState(false);
+
+  const handleSave=async()=>{
+    setSaving(true);
+    await onSave(entry.id,{...form,duration:Number(form.duration)});
+    setSaving(false);
+    setEditing(false);
+  };
+
+  const SESSION_TYPES=["Gi","No-Gi","Open Mat","Drilling","Competition","Private"];
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(30,45,64,0.5)",zIndex:200,display:"flex",flexDirection:"column",justifyContent:"flex-end"}} onClick={onClose}>
+      <div style={{background:T.bg,borderRadius:"20px 20px 0 0",padding:"20px 16px 40px",maxHeight:"92vh",overflowY:"auto",animation:"slideUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
+        {/* Header */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div style={{fontFamily:"'DM Serif Display'",fontSize:22}}>{editing?"Edit Session":"Session Details"}</div>
+          <button onClick={onClose} style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:16,color:T.muted}}>✕</button>
+        </div>
+
+        {editing?(
+          <>
+            {/* Date + Duration */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+              <div>
+                <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Date</div>
+                <input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none"}}/>
+              </div>
+              <div>
+                <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Duration (min)</div>
+                <input type="number" value={form.duration} onChange={e=>setForm({...form,duration:e.target.value})} style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none"}}/>
+              </div>
+            </div>
+            {/* Session type */}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}}>Session Type</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {SESSION_TYPES.map(t=><button key={t} onClick={()=>setForm({...form,type:t})} style={{background:form.type===t?T.teal:T.surface,color:form.type===t?"#fff":T.muted,border:`1.5px solid ${form.type===t?T.teal:T.border}`,borderRadius:20,padding:"6px 14px",fontSize:12,cursor:"pointer",fontWeight:600}}>{t}</button>)}
+              </div>
+            </div>
+            {/* Key Learnings */}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>💡 Key Learnings</div>
+              <textarea value={form.learnings} onChange={e=>setForm({...form,learnings:e.target.value})} rows={4} maxLength={1000} placeholder="What clicked today?" style={{width:"100%",background:T.tealLight,border:`1.5px solid ${T.teal}44`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/>
+            </div>
+            {/* Techniques drilled */}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Techniques Drilled</div>
+              <input value={form.techniques} onChange={e=>setForm({...form,techniques:e.target.value})} placeholder="e.g. Armbar, Triangle, Back take..." style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none"}}/>
+            </div>
+            {/* Notes */}
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Notes</div>
+              <textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} rows={3} maxLength={500} placeholder="Anything else..." style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <Btn onClick={handleSave} disabled={saving} style={{flex:1,padding:"12px"}}>
+                {saving?<Spinner size={16} color="#fff"/>:"Save Changes ✓"}
+              </Btn>
+              <Btn onClick={()=>setEditing(false)} variant="ghost" style={{flex:1,padding:"12px"}}>Cancel</Btn>
+            </div>
+          </>
+        ):(
+          <>
+            {/* View mode */}
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
+              <Pill label={entry.type}/>
+              <Pill label={`${entry.duration} min`} color={T.orange} bg={T.orangeLight}/>
+              <Pill label={entry.date} color={T.muted} bg={T.cardAlt}/>
+            </div>
+            {form.learnings?(
+              <Card style={{background:T.tealLight,border:`1px solid ${T.teal}33`,marginBottom:10}}>
+                <div style={{fontSize:10,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}}>💡 Key Learnings</div>
+                <div style={{fontSize:13,color:T.text,lineHeight:1.7,whiteSpace:"pre-wrap"}}>{form.learnings}</div>
+              </Card>
+            ):null}
+            {form.techniques?(
+              <Card style={{marginBottom:10}}>
+                <div style={{fontSize:10,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}}>🥋 Techniques Drilled</div>
+                <div style={{fontSize:13,color:T.text,lineHeight:1.7}}>{form.techniques}</div>
+              </Card>
+            ):null}
+            {form.notes?(
+              <Card style={{marginBottom:10}}>
+                <div style={{fontSize:10,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}}>📝 Notes</div>
+                <div style={{fontSize:13,color:T.text,lineHeight:1.7,whiteSpace:"pre-wrap"}}>{form.notes}</div>
+              </Card>
+            ):null}
+            {!form.learnings&&!form.techniques&&!form.notes&&(
+              <div style={{textAlign:"center",color:T.muted,padding:"20px 0",fontSize:13,fontStyle:"italic"}}>No details recorded — tap Edit to add some.</div>
+            )}
+            <div style={{display:"flex",gap:8,marginTop:8}}>
+              <Btn onClick={()=>setEditing(true)} variant="secondary" style={{flex:1,padding:"12px"}}>✏️ Edit</Btn>
+              <button onClick={()=>onDelete(entry.id)}
+                style={{flex:1,padding:"12px",background:confirmDel===entry.id?"#fee2e2":"none",border:`1px solid ${confirmDel===entry.id?"#fca5a5":"#fca5a5"}`,borderRadius:12,color:"#dc2626",fontSize:13,fontWeight:700,cursor:"pointer",transition:"all 0.15s"}}>
+                {confirmDel===entry.id?"Tap again to confirm":"🗑 Delete"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -1320,6 +1458,7 @@ function CompScreen({user}){
   const [ibjjfBelt,setIbjjfBelt]=useState("White / Blue");
   const [ibjjfSearch,setIbjjfSearch]=useState("");
   const [savingEvent,setSavingEvent]=useState(null); // event index being saved
+  const [confirmDelComp,setConfirmDelComp]=useState(null);
   const saveTimer=useRef({});
 
   useEffect(()=>{
@@ -1349,9 +1488,15 @@ function CompScreen({user}){
   };
 
   const delComp=async(id)=>{
+    if(confirmDelComp!==id){
+      setConfirmDelComp(id);
+      setTimeout(()=>setConfirmDelComp(null),3000);
+      return;
+    }
     const{error}=await supabase.from("competitions").delete().eq("id",id);
     if(error){console.error("Failed to delete competition:",error.message);return;}
     setMyComps(c=>c.filter(x=>x.id!==id));
+    setConfirmDelComp(null);
   };
 
   // Add AI-found event to My Events — duplicate-safe
@@ -1488,7 +1633,10 @@ function CompScreen({user}){
                     {c.goal&&<div style={{fontSize:12,color:T.teal,marginTop:4}}>🎯 <strong>Goal:</strong> {c.goal}</div>}
                     {c.notes&&<div style={{fontSize:12,color:T.muted,marginTop:4,fontStyle:"italic"}}>{c.notes}</div>}
                   </div>
-                  <button onClick={()=>delComp(c.id)} style={{background:"none",border:"none",color:T.subtle,cursor:"pointer",fontSize:16}}>✕</button>
+                  <button onClick={()=>delComp(c.id)}
+                    style={{background:confirmDelComp===c.id?"#fee2e2":"none",border:confirmDelComp===c.id?"1px solid #fca5a5":"none",borderRadius:8,color:confirmDelComp===c.id?"#dc2626":T.subtle,cursor:"pointer",fontSize:confirmDelComp===c.id?10:16,fontWeight:700,padding:confirmDelComp===c.id?"4px 7px":"0",whiteSpace:"nowrap",flexShrink:0,transition:"all 0.15s"}}>
+                    {confirmDelComp===c.id?"Sure?":"✕"}
+                  </button>
                 </div>
               </Card>
             );
@@ -1535,7 +1683,7 @@ function CompScreen({user}){
               {/* Fallback links */}
               <div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${T.teal}22`}}>
                 <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8}}>NZ BJJ Resources</div>
-                {[{label:"NZBJJ — NZ Brazilian Jiu-Jitsu",url:"https://www.nzbjj.co.nz"},{label:"IBJJF Events",url:"https://ibjjf.com/events"},{label:"Facebook: Auckland BJJ Community",url:"https://www.facebook.com/groups/aucklandbjj"}].map(l=>(
+                {[{label:"NZ BJJ Federation",url:"https://www.nzbjjf.co.nz/"},{label:"Stealth Grappling — Event Calendar",url:"https://stealthgrappling.com/pages/event-calendar"},{label:"NZ Grappler — Comp Registrations",url:"https://nzgrappler.com/comp-registrations/"}].map(l=>(
                   <a key={l.label} href={l.url} target="_blank" rel="noreferrer" style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${T.border}`,textDecoration:"none"}}>
                     <span style={{fontSize:12,color:T.text,fontWeight:600}}>{l.label}</span><span style={{color:T.teal,fontSize:12}}>→</span>
                   </a>
@@ -1691,9 +1839,6 @@ function HomeScreen({user,setTab,onSignOut}){
               </Card>
             </>
           )}
-          <div style={{background:`linear-gradient(135deg,${T.tealLight},${T.surface})`,border:`1px solid ${T.teal}22`,borderRadius:14,padding:"16px",textAlign:"center",marginTop:4,marginBottom:8}}>
-            <div style={{fontFamily:"'DM Serif Display'",fontStyle:"italic",fontSize:16,color:T.teal,lineHeight:1.5}}>"A black belt is just a white belt who never quit."</div>
-          </div>
           {/* Beta feedback */}
           <Card style={{border:`1.5px solid ${T.orange}33`,background:T.orangeLight,marginTop:4,marginBottom:8}}>
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
