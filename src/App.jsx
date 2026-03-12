@@ -2,17 +2,12 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 // ── 🔑 SUPABASE CREDENTIALS ───────────────────────────────────────────────────
-// Store these in your .env.local file (never commit that file to git):
-//   NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-//   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-//
-// ⚠️  Also ensure Row Level Security (RLS) is ENABLED on all tables:
-//     profiles, journal_entries, custom_techniques, game_plan, competitions
-//     Each policy should use:  USING (user_id = auth.uid())
-//                              WITH CHECK (user_id = auth.uid())
+// Store in .env.local:  VITE_SUPABASE_URL=...  VITE_SUPABASE_ANON_KEY=...
+// ⚠️  Enable RLS on all tables: profiles, journal_entries, custom_techniques,
+//     game_plan, competitions — using (user_id = auth.uid())
 // ─────────────────────────────────────────────────────────────────────────────
-const SUPABASE_URL     = import.meta.env.VITE_SUPABASE_URL     || "";
-const SUPABASE_ANON_KEY= import.meta.env.VITE_SUPABASE_ANON_KEY|| "";
+const SUPABASE_URL      = import.meta.env.VITE_SUPABASE_URL      || "";
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -352,7 +347,6 @@ function useAudio(volume=0.7){
   const playTone=useCallback((freq,type,dur,vol=volume)=>{
     try{
       const ac=getCtx();
-      // iOS Safari requires AudioContext to be resumed after a user gesture
       if(ac.state==="suspended") ac.resume();
       const osc=ac.createOscillator(),gain=ac.createGain();
       osc.connect(gain);gain.connect(ac.destination);osc.type=type;osc.frequency.value=freq;
@@ -607,7 +601,6 @@ function TechniqueScreen({user}){
     if(error){console.error("Failed to update technique:",error.message);return;}
     setMyTechs(p=>{
       const next=p.map(t=>t.id===id?{...t,...updated}:t);
-      // Derive cats inside updater so we always work with the latest state
       setMyCategories([...new Set(next.map(t=>t.category).filter(Boolean))]);
       return next;
     });
@@ -947,10 +940,9 @@ function JournalScreen({user}){
       setEntries(data);
       const days=[...new Set(data.map(x=>x.date))].sort().reverse();
       let s=0;
-      // Use todayStr() for timezone-safe string comparison (avoids UTC offset issues in NZ)
       let cursor=todayStr();
       for(const day of days){
-        if(day===cursor){s++;// step cursor back one calendar day
+        if(day===cursor){s++;
           const d=new Date(cursor+"T12:00:00");d.setDate(d.getDate()-1);
           cursor=d.toISOString().split("T")[0];
         }else{break;}
@@ -1031,15 +1023,15 @@ function JournalScreen({user}){
             </div>
             <div style={{marginBottom:14}}>
               <div style={{fontSize:11,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>💡 Key Learnings</div>
-              <textarea value={form.learnings} onChange={e=>setForm({...form,learnings:e.target.value})} rows={3} maxLength={1000} placeholder="What clicked today? Any 'aha' moments?" style={{width:"100%",background:T.tealLight,border:`1.5px solid ${T.teal}44`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/>
+              <textarea value={form.learnings} onChange={e=>setForm({...form,learnings:e.target.value})} rows={3} placeholder="What clicked today? Any 'aha' moments?" style={{width:"100%",background:T.tealLight,border:`1.5px solid ${T.teal}44`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/>
             </div>
             <button onClick={()=>setShowExtra(v=>!v)} style={{width:"100%",background:"none",border:`1px dashed ${T.border}`,borderRadius:10,padding:"10px",cursor:"pointer",color:T.muted,fontSize:13,fontWeight:600,marginBottom:showExtra?14:20}}>
               {showExtra?"▲ Hide details":"▼ Add more details (techniques, notes)"}
             </button>
             {showExtra&&(
               <>
-                <div style={{marginBottom:14}}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Techniques Drilled</div><textarea value={form.techniques} onChange={e=>setForm({...form,techniques:e.target.value})} rows={2} maxLength={500} placeholder="e.g. Triangle setup, knee slice pass..." style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/></div>
-                <div style={{marginBottom:20}}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>General Notes</div><textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} rows={2} maxLength={500} placeholder="How did the session feel?" style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/></div>
+                <div style={{marginBottom:14}}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Techniques Drilled</div><textarea value={form.techniques} onChange={e=>setForm({...form,techniques:e.target.value})} rows={2} placeholder="e.g. Triangle setup, knee slice pass..." style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/></div>
+                <div style={{marginBottom:20}}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>General Notes</div><textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} rows={2} placeholder="How did the session feel?" style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/></div>
               </>
             )}
             <Btn onClick={saveEntry} disabled={saving} style={{width:"100%",padding:"15px",fontSize:15}}>
@@ -1202,7 +1194,6 @@ function CompScreen({user}){
     supabase.from("competitions").select("*").eq("user_id",user.id).order("date",{ascending:true}).then(({data})=>{
       if(data)setMyComps(data);setCompsLoading(false);
     });
-    // Cleanup: clear all pending debounce timers on unmount
     return()=>{ Object.values(saveTimer.current).forEach(clearTimeout); };
   },[user.id]);
 
@@ -1229,7 +1220,6 @@ function CompScreen({user}){
 
   // Add AI-found event to My Events — duplicate-safe
   const addAiEventToMyEvents=async(ev,idx)=>{
-    // Prevent double-tap: button is already disabled via savingEvent===idx
     setSavingEvent(idx);
     const row={user_id:user.id,name:ev.name,date:ev.date||"",weight:"",gi:"Gi",goal:"",notes:ev.location?`${ev.location}${ev.organiser?" · "+ev.organiser:""}`:"",};
     const{data,error}=await supabase.from("competitions").insert(row).select().single();
@@ -1258,9 +1248,9 @@ function CompScreen({user}){
       const start=clean.indexOf("["),end=clean.lastIndexOf("]");
       if(start!==-1&&end!==-1){
         let parsed;
-        try{ parsed=JSON.parse(clean.slice(start,end+1)); }
-        catch(parseErr){ setEventsError("Couldn't parse event data. Try again."); setEventsLoading(false); return; }
-        if(!Array.isArray(parsed)){ setEventsError("Unexpected response format. Try again."); setEventsLoading(false); return; }
+        try{parsed=JSON.parse(clean.slice(start,end+1));}
+        catch(parseErr){setEventsError("Couldn't parse event data. Try again.");setEventsLoading(false);return;}
+        if(!Array.isArray(parsed)){setEventsError("Unexpected response format. Try again.");setEventsLoading(false);return;}
         const future=parsed.filter(ev=>ev&&typeof ev==="object"&&(!ev.date||!isDatePast(ev.date)));
         setAiEvents(future);
         if(future.length===0)setEventsError("No upcoming events found right now. Check the links below or try again later.");
@@ -1454,9 +1444,9 @@ function CompScreen({user}){
 // ── HOME ──────────────────────────────────────────────────────────────────────
 function HomeScreen({user,setTab,onSignOut}){
   const [entries,setEntries]=useState([]);
-  const [profile,setProfile]=useState({name:"Fighter",belt:"White"});
+  const [profile,setProfile]=useState({name:null,belt:"White"});
   const [editing,setEditing]=useState(false);
-  const [nameInput,setNameInput]=useState("Fighter");
+  const [nameInput,setNameInput]=useState("");
   const [beltInput,setBeltInput]=useState("White");
   const [loading,setLoading]=useState(true);
 
@@ -1488,13 +1478,25 @@ function HomeScreen({user,setTab,onSignOut}){
     {icon:"📅",label:"Calendar",sub:"Schedule & track",action:()=>setTab("calendar"),color:T.green,bg:T.greenLight},
     {icon:"🏆",label:"Compete",sub:"Game plan & events",action:()=>setTab("comp"),color:T.teal,bg:T.tealLight},
   ];
+  const isNewUser=!loading&&(!profile.name||profile.name==="Fighter")&&entries.length===0;
 
   return(
     <div style={{padding:"0 16px",animation:"fadeUp 0.4s ease"}}>
+      {isNewUser&&(
+        <div style={{background:`linear-gradient(135deg,${T.teal},#2a5f78)`,borderRadius:18,padding:"20px",marginBottom:16,boxShadow:`0 4px 20px ${T.teal}44`,animation:"popIn 0.4s ease"}}>
+          <div style={{fontSize:32,marginBottom:8}}>👋</div>
+          <div style={{fontFamily:"'DM Serif Display'",fontSize:22,color:"#fff",marginBottom:6}}>Welcome to Openmat!</div>
+          <div style={{fontSize:13,color:"rgba(255,255,255,0.8)",lineHeight:1.6,marginBottom:16}}>Your personal jiu-jitsu companion. Start by setting your name and belt rank, then log your first session on the mats.</div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>setEditing(true)} style={{flex:1,background:"#fff",border:"none",borderRadius:12,padding:"11px",fontWeight:700,fontSize:13,color:T.teal,cursor:"pointer"}}>Set Up Profile</button>
+            <button onClick={()=>setTab("journal")} style={{flex:1,background:"rgba(255,255,255,0.15)",border:"1.5px solid rgba(255,255,255,0.3)",borderRadius:12,padding:"11px",fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer"}}>Log First Session</button>
+          </div>
+        </div>
+      )}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,padding:"16px",background:T.teal,borderRadius:18,boxShadow:`0 4px 20px ${T.teal}44`}}>
         <div>
           <div style={{fontSize:12,color:"rgba(255,255,255,0.7)",fontWeight:600,marginBottom:2}}>{greeting} 👋</div>
-          <div style={{fontFamily:"'DM Serif Display'",fontSize:26,color:"#fff",lineHeight:1}}>{profile.name}</div>
+          <div style={{fontFamily:"'DM Serif Display'",fontSize:26,color:"#fff",lineHeight:1}}>{profile.name||user.email?.split("@")[0]||"Fighter"}</div>
           <div style={{marginTop:6}}><span style={{background:BELT_COLORS[profile.belt],color:BELT_TEXT[profile.belt],borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}>{profile.belt} Belt</span></div>
         </div>
         <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
