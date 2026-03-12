@@ -343,20 +343,44 @@ const isDatePast = (dateStr)=>{ if(!dateStr) return false; return new Date(dateS
 // ── Audio ─────────────────────────────────────────────────────────────────────
 function useAudio(volume=0.7){
   const ctx=useRef(null);
-  const getCtx=()=>{ if(!ctx.current) ctx.current=new(window.AudioContext||window.webkitAudioContext)(); return ctx.current; };
-  const playTone=useCallback((freq,type,dur,vol=volume)=>{
+  const getCtx=()=>{
+    if(!ctx.current) ctx.current=new(window.AudioContext||window.webkitAudioContext)();
+    return ctx.current;
+  };
+  // Call this on a direct user tap to unlock iOS audio
+  const unlockAudio=useCallback(()=>{
+    try{ const ac=getCtx(); if(ac.state==="suspended") ac.resume(); }catch(e){}
+  },[]);
+  const playBeep=useCallback((freq,startTime,dur,vol=volume)=>{
     try{
       const ac=getCtx();
       if(ac.state==="suspended") ac.resume();
       const osc=ac.createOscillator(),gain=ac.createGain();
-      osc.connect(gain);gain.connect(ac.destination);osc.type=type;osc.frequency.value=freq;
-      gain.gain.setValueAtTime(vol,ac.currentTime);gain.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+dur);
-      osc.start(ac.currentTime);osc.stop(ac.currentTime+dur);
+      osc.connect(gain);gain.connect(ac.destination);
+      osc.type="square";osc.frequency.value=freq;
+      gain.gain.setValueAtTime(0,startTime);
+      gain.gain.linearRampToValueAtTime(vol,startTime+0.005);
+      gain.gain.setValueAtTime(vol,startTime+dur-0.01);
+      gain.gain.linearRampToValueAtTime(0,startTime+dur);
+      osc.start(startTime);osc.stop(startTime+dur+0.02);
     }catch(e){}
   },[volume]);
-  const ringRoundEnd=useCallback(()=>{ playTone(220,"sine",1.2);setTimeout(()=>playTone(165,"sine",0.8),120); },[playTone]);
-  const ringRoundStart=useCallback(()=>{ playTone(880,"triangle",0.3);setTimeout(()=>playTone(1100,"triangle",0.4),150);setTimeout(()=>playTone(880,"triangle",0.5),300); },[playTone]);
-  return{ringRoundEnd,ringRoundStart};
+  // Three sharp loud beeps — like a referee whistle
+  const ringRoundEnd=useCallback(()=>{
+    const ac=getCtx(); if(ac.state==="suspended") ac.resume();
+    const t=ac.currentTime;
+    playBeep(900,t,0.12,Math.min(volume*1.4,1));
+    playBeep(900,t+0.18,0.12,Math.min(volume*1.4,1));
+    playBeep(900,t+0.36,0.18,Math.min(volume*1.4,1));
+  },[playBeep,volume]);
+  // Two quick ascending beeps for round start
+  const ringRoundStart=useCallback(()=>{
+    const ac=getCtx(); if(ac.state==="suspended") ac.resume();
+    const t=ac.currentTime;
+    playBeep(700,t,0.1,Math.min(volume*1.2,1));
+    playBeep(1050,t+0.15,0.15,Math.min(volume*1.2,1));
+  },[playBeep,volume]);
+  return{ringRoundEnd,ringRoundStart,unlockAudio};
 }
 
 // ── Shared UI ─────────────────────────────────────────────────────────────────
@@ -449,9 +473,9 @@ function TimerScreen(){
   const [fullscreen,setFullscreen]=useState(false);
   const [volume,setVolume]=useState(0.7);
   const interval=useRef(null);
-  const{ringRoundEnd,ringRoundStart}=useAudio(volume);
+  const{ringRoundEnd,ringRoundStart,unlockAudio}=useAudio(volume);
   const reset=()=>{clearInterval(interval.current);setRunning(false);setCurrentRound(1);setIsRest(false);setTimeLeft(roundLen);setDone(false);setShowSetup(true);setFullscreen(false);};
-  const start=()=>{setShowSetup(false);setTimeLeft(roundLen);setRunning(true);};
+  const start=()=>{unlockAudio();setShowSetup(false);setTimeLeft(roundLen);setRunning(true);};
   useEffect(()=>{
     if(!running){clearInterval(interval.current);return;}
     interval.current=setInterval(()=>{
@@ -558,6 +582,7 @@ function TechniqueScreen({user}){
   const [techForm,setTechForm]=useState({title:"",category:"",level:"Fundamentals",url:"",notes:""});
   const [techLoading,setTechLoading]=useState(false);
   const [viewTech,setViewTech]=useState(null);        // detail modal
+  const [confirmRemove,setConfirmRemove]=useState(null); // tech name pending removal
 
   useEffect(()=>{
     supabase.from("custom_techniques").select("*").eq("user_id",user.id).order("created_at",{ascending:false})
@@ -573,7 +598,20 @@ function TechniqueScreen({user}){
   // Add technique from standard library → My Library (silent, no popup)
   const addFromLibrary=async(techName,category,level)=>{
     const already=myTechs.find(t=>t.title===techName);
-    if(already) return; // already saved, button just shows ★ Saved
+    if(already){
+      if(confirmRemove===techName){
+        // Second tap — remove it
+        const{error}=await supabase.from("custom_techniques").delete().eq("id",already.id);
+        if(!error) setMyTechs(p=>p.filter(t=>t.id!==already.id));
+        setConfirmRemove(null);
+      } else {
+        // First tap — show confirm state
+        setConfirmRemove(techName);
+        setTimeout(()=>setConfirmRemove(null),3000); // auto-cancel after 3s
+      }
+      return;
+    }
+    setConfirmRemove(null);
     const ytUrl=`https://www.youtube.com/results?search_query=${encodeURIComponent("BJJ "+techName+" tutorial")}`;
     const row={user_id:user.id,title:techName,category,level,url:ytUrl,notes:""};
     const{data}=await supabase.from("custom_techniques").insert(row).select().single();
@@ -685,9 +723,9 @@ function TechniqueScreen({user}){
                   <div style={{display:"flex",gap:8,alignItems:"center"}}>
                     {/* Add to My Library */}
                     <button onClick={e=>{e.stopPropagation();addFromLibrary(tech,activePos,level);}}
-                      title={inMyLib?"View in My Library":"Add to My Library"}
-                      style={{background:inMyLib?T.orangeLight:"none",border:`1.5px solid ${inMyLib?T.orange:T.border}`,borderRadius:8,padding:"4px 8px",cursor:"pointer",fontSize:12,color:inMyLib?T.orange:T.muted,fontWeight:700,transition:"all 0.15s"}}>
-                      {inMyLib?"★ Saved":"☆ Save"}
+                      title={inMyLib?confirmRemove===tech?"Tap again to remove":"Remove from My Library":"Add to My Library"}
+                      style={{background:confirmRemove===tech?"#fee2e2":inMyLib?T.orangeLight:"none",border:`1.5px solid ${confirmRemove===tech?"#fca5a5":inMyLib?T.orange:T.border}`,borderRadius:8,padding:"4px 8px",cursor:"pointer",fontSize:12,color:confirmRemove===tech?"#dc2626":inMyLib?T.orange:T.muted,fontWeight:700,transition:"all 0.15s"}}>
+                      {confirmRemove===tech?"Remove?":inMyLib?"★ Saved":"☆ Save"}
                     </button>
                     <span style={{color:T.muted,fontSize:13}}>{expanded===tech?"▲":"▼"}</span>
                   </div>
@@ -933,40 +971,122 @@ function JournalScreen({user}){
   const [form,setForm]=useState({date:todayStr(),duration:60,type:"Open Mat",techniques:"",notes:"",learnings:""});
   const [showExtra,setShowExtra]=useState(false);
   const [streak,setStreak]=useState(0);
+  const [weeklyGoal,setWeeklyGoal]=useState(3);
+  const [goalInput,setGoalInput]=useState(3);
+  const [savingGoal,setSavingGoal]=useState(false);
+  const [editingGoal,setEditingGoal]=useState(false);
+  const [confirmDelEntry,setConfirmDelEntry]=useState(null);
+  const [viewEntry,setViewEntry]=useState(null); // entry being viewed/edited
+
+  // Mon–Sun week containing a given YYYY-MM-DD string
+  const getWeekKey=(dateStr)=>{
+    const d=new Date(dateStr+"T12:00:00");
+    const dow=d.getDay(); // 0=Sun,1=Mon...
+    const diffToMon=(dow===0?-6:1-dow);
+    const mon=new Date(d);mon.setDate(d.getDate()+diffToMon);
+    return mon.toISOString().split("T")[0]; // Monday of that week
+  };
+
+  const calcStreak=(entryList,goal)=>{
+    if(!goal||goal<=0) return 0;
+    // Build map: weekKey -> count
+    const weekCounts={};
+    entryList.forEach(e=>{
+      const wk=getWeekKey(e.date);
+      weekCounts[wk]=(weekCounts[wk]||0)+1;
+    });
+    // Get current week's Monday
+    const thisWeekKey=getWeekKey(todayStr());
+    // Build sorted list of all Mon keys that hit the goal, newest first
+    const hitWeeks=Object.keys(weekCounts).filter(wk=>weekCounts[wk]>=goal).sort().reverse();
+    if(hitWeeks.length===0) return 0;
+    // Walk back from current week counting consecutive hit weeks
+    let s=0;
+    let cursor=new Date(thisWeekKey+"T12:00:00");
+    for(let i=0;i<200;i++){
+      const key=cursor.toISOString().split("T")[0];
+      if(weekCounts[key]&&weekCounts[key]>=goal){
+        s++;
+        cursor.setDate(cursor.getDate()-7);
+      } else if(key===thisWeekKey){
+        // Current week hasn't hit goal yet — don't break streak, just don't count it
+        cursor.setDate(cursor.getDate()-7);
+        // but if we haven't started (s===0) keep going to check past weeks
+        // Actually if this week hasn't hit goal, streak from past is still valid
+        // Only break if we go further back and miss a week
+        // Re-check: if we're on the current week and it hasn't hit, just step back
+        continue;
+      } else {
+        break; // missed a past week
+      }
+    }
+    return s;
+  };
 
   const fetchEntries=async()=>{
-    const{data}=await supabase.from("journal_entries").select("*").eq("user_id",user.id).order("date",{ascending:false}).order("created_at",{ascending:false});
-    if(data){
-      setEntries(data);
-      const days=[...new Set(data.map(x=>x.date))].sort().reverse();
-      let s=0;
-      let cursor=todayStr();
-      for(const day of days){
-        if(day===cursor){s++;
-          const d=new Date(cursor+"T12:00:00");d.setDate(d.getDate()-1);
-          cursor=d.toISOString().split("T")[0];
-        }else{break;}
-      }
-      setStreak(s);
+    const[{data:j},{data:p}]=await Promise.all([
+      supabase.from("journal_entries").select("*").eq("user_id",user.id).order("date",{ascending:false}).order("created_at",{ascending:false}),
+      supabase.from("profiles").select("weekly_goal").eq("id",user.id).single(),
+    ]);
+    const goal=(p?.weekly_goal)||3;
+    if(j){
+      setEntries(j);
+      setStreak(calcStreak(j,goal));
     }
+    setWeeklyGoal(goal);
+    setGoalInput(goal);
     setLoading(false);
   };
   useEffect(()=>{fetchEntries();},[user.id]);
+
+  const saveGoal=async()=>{
+    setSavingGoal(true);
+    await supabase.from("profiles").upsert({id:user.id,weekly_goal:Number(goalInput),updated_at:new Date().toISOString()});
+    setWeeklyGoal(Number(goalInput));
+    setStreak(calcStreak(entries,Number(goalInput)));
+    setEditingGoal(false);setSavingGoal(false);
+  };
 
   const saveEntry=async()=>{
     setSaving(true);
     const{data,error}=await supabase.from("journal_entries").insert({user_id:user.id,...form,duration:Number(form.duration)}).select().single();
     if(error){console.error("Failed to save journal entry:",error.message);setSaving(false);return;}
-    if(data)setEntries(e=>[data,...e]);
+    if(data){
+      const updated=[data,...entries];
+      setEntries(updated);
+      setStreak(calcStreak(updated,weeklyGoal));
+    }
     setSaving(false);setAdding(false);setShowExtra(false);
     setForm({date:todayStr(),duration:60,type:"Open Mat",techniques:"",notes:"",learnings:""});
   };
 
   const delEntry=async(id)=>{
+    if(confirmDelEntry!==id){
+      setConfirmDelEntry(id);
+      setTimeout(()=>setConfirmDelEntry(null),3000);
+      return;
+    }
     const{error}=await supabase.from("journal_entries").delete().eq("id",id);
     if(error){console.error("Failed to delete entry:",error.message);return;}
-    setEntries(e=>e.filter(x=>x.id!==id));
+    const updated=entries.filter(x=>x.id!==id);
+    setEntries(updated);
+    setStreak(calcStreak(updated,weeklyGoal));
+    setConfirmDelEntry(null);
+    setViewEntry(null);
   };
+
+  const updateEntry=async(id,fields)=>{
+    const{error}=await supabase.from("journal_entries").update(fields).eq("id",id);
+    if(error){console.error("Failed to update entry:",error.message);return;}
+    const updated=entries.map(x=>x.id===id?{...x,...fields}:x);
+    setEntries(updated);
+    setViewEntry(v=>v&&v.id===id?{...v,...fields}:v);
+  };
+
+  // Sessions this week (Mon–Sun)
+  const thisWeekKey=getWeekKey(todayStr());
+  const sessionsThisWeek=entries.filter(e=>getWeekKey(e.date)===thisWeekKey).length;
+  const goalHit=sessionsThisWeek>=weeklyGoal;
 
   const last7=Array.from({length:7}).map((_,i)=>{
     const d=new Date();d.setDate(d.getDate()-6+i);
@@ -979,10 +1099,43 @@ function JournalScreen({user}){
     <div style={{padding:"0 16px",animation:"fadeUp 0.4s ease"}}>
       <SectionTitle sub="Track every session on the mats">Training Journal</SectionTitle>
       <div style={{display:"flex",gap:8,marginBottom:12}}>
-        <StatBox label="Streak" value={streak} icon="🔥" color={T.orange} bg={T.orangeLight}/>
+        <StatBox label="Wk Streak" value={streak} icon="🔥" color={T.orange} bg={T.orangeLight}/>
         <StatBox label="Sessions" value={entries.length} icon="🥋" color={T.teal} bg={T.tealLight}/>
         <StatBox label="Hours" value={Math.floor(totalMins/60)} icon="⏱" color={T.green} bg={T.greenLight}/>
       </div>
+      {/* Weekly Goal */}
+      <Card style={{background:goalHit?T.greenLight:T.cardAlt,border:`1.5px solid ${goalHit?T.green+"44":T.border}`,marginBottom:10}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div>
+            <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:3}}>Weekly Goal</div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <div style={{fontFamily:"'DM Serif Display'",fontSize:22,color:goalHit?T.green:T.text}}>{sessionsThisWeek}<span style={{fontSize:14,color:T.muted,fontWeight:400}}> / {weeklyGoal}</span></div>
+              {goalHit&&<span style={{fontSize:13,color:T.green,fontWeight:700}}>✓ Goal hit!</span>}
+            </div>
+            <div style={{marginTop:6,display:"flex",gap:4}}>
+              {Array.from({length:weeklyGoal}).map((_,i)=>(
+                <div key={i} style={{width:28,height:8,borderRadius:4,background:i<sessionsThisWeek?(goalHit?T.green:T.teal):T.border,transition:"background 0.3s"}}/>
+              ))}
+            </div>
+          </div>
+          <button onClick={()=>{setEditingGoal(e=>!e);setGoalInput(weeklyGoal);}} style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,padding:"7px 12px",fontSize:12,fontWeight:700,color:T.muted,cursor:"pointer"}}>
+            {editingGoal?"✕":"Edit"}
+          </button>
+        </div>
+        {editingGoal&&(
+          <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${T.border}`,display:"flex",gap:8,alignItems:"center"}}>
+            <div style={{fontSize:12,color:T.muted,fontWeight:600}}>Sessions per week:</div>
+            <div style={{display:"flex",gap:6}}>
+              {[1,2,3,4,5,6,7].map(n=>(
+                <button key={n} onClick={()=>setGoalInput(n)} style={{width:32,height:32,borderRadius:8,border:`1.5px solid ${goalInput===n?T.teal:T.border}`,background:goalInput===n?T.teal:T.surface,color:goalInput===n?"#fff":T.muted,fontWeight:700,fontSize:13,cursor:"pointer"}}>{n}</button>
+              ))}
+            </div>
+            <Btn onClick={saveGoal} disabled={savingGoal} style={{padding:"6px 14px",fontSize:12,marginLeft:"auto"}}>
+              {savingGoal?<Spinner size={14} color="#fff"/>:"Save"}
+            </Btn>
+          </div>
+        )}
+      </Card>
       <Card style={{background:T.cardAlt}}>
         <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:4}}>Last 7 Days</div>
         <div style={{fontSize:11,color:T.muted,marginBottom:10}}>Tap an empty day to log a session</div>
@@ -1043,18 +1196,139 @@ function JournalScreen({user}){
       {loading&&<div style={{display:"flex",justifyContent:"center",padding:"40px 0"}}><Spinner size={32}/></div>}
       {!loading&&entries.length===0&&<div style={{textAlign:"center",color:T.muted,padding:"40px 0"}}><div style={{fontSize:40,marginBottom:10}}>📓</div><div style={{fontFamily:"'DM Serif Display'",fontSize:20,color:T.text,marginBottom:4}}>No sessions yet</div><div style={{fontSize:13}}>Start logging your journey on the mats!</div></div>}
       {entries.map(e=>(
-        <Card key={e.id}>
+        <Card key={e.id} onClick={()=>setViewEntry(e)} style={{cursor:"pointer"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
             <div style={{flex:1}}>
               <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:6,flexWrap:"wrap"}}><Pill label={e.type}/><span style={{fontSize:11,color:T.muted,fontFamily:"'JetBrains Mono'"}}>{e.date}</span><span style={{fontSize:11,color:T.muted}}>· {e.duration} min</span></div>
-              {e.learnings&&<div style={{background:T.tealLight,border:`1px solid ${T.teal}33`,borderRadius:8,padding:"8px 10px",marginBottom:6}}><div style={{fontSize:10,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:2}}>💡 Key Learnings</div><div style={{fontSize:12,color:T.text,lineHeight:1.6}}>{e.learnings}</div></div>}
-              {e.techniques&&<div style={{fontSize:12,color:T.muted,marginBottom:2}}><span style={{color:T.text,fontWeight:600}}>Drilled: </span>{e.techniques}</div>}
-              {e.notes&&<div style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>{e.notes}</div>}
+              {e.learnings&&<div style={{background:T.tealLight,border:`1px solid ${T.teal}33`,borderRadius:8,padding:"8px 10px",marginBottom:6}}><div style={{fontSize:10,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:2}}>💡 Key Learnings</div><div style={{fontSize:12,color:T.text,lineHeight:1.6}}>{e.learnings.slice(0,120)}{e.learnings.length>120?"...":""}</div></div>}
+              {e.techniques&&<div style={{fontSize:12,color:T.muted,marginBottom:2}}><span style={{color:T.text,fontWeight:600}}>Drilled: </span>{e.techniques.slice(0,80)}{e.techniques.length>80?"...":""}</div>}
+              {e.notes&&<div style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>{e.notes.slice(0,80)}{e.notes.length>80?"...":""}</div>}
             </div>
-            <button onClick={()=>delEntry(e.id)} style={{background:"none",border:"none",color:T.subtle,cursor:"pointer",fontSize:16,marginLeft:8,flexShrink:0}}>✕</button>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6,marginLeft:8,flexShrink:0}}>
+              <button onClick={ev=>{ev.stopPropagation();delEntry(e.id);}}
+                style={{background:confirmDelEntry===e.id?"#fee2e2":"none",border:confirmDelEntry===e.id?"1px solid #fca5a5":"none",borderRadius:8,color:confirmDelEntry===e.id?"#dc2626":T.subtle,cursor:"pointer",fontSize:confirmDelEntry===e.id?10:16,fontWeight:700,padding:confirmDelEntry===e.id?"4px 7px":"0",whiteSpace:"nowrap",transition:"all 0.15s"}}>
+                {confirmDelEntry===e.id?"Sure?":"✕"}
+              </button>
+              <span style={{fontSize:11,color:T.muted}}>→</span>
+            </div>
           </div>
         </Card>
       ))}
+
+      {/* ── Entry detail / edit modal ── */}
+      {viewEntry&&<JournalEntryModal entry={viewEntry} onClose={()=>setViewEntry(null)} onSave={updateEntry} onDelete={delEntry} confirmDel={confirmDelEntry}/>}
+    </div>
+  );
+}
+
+// ── JOURNAL ENTRY MODAL ───────────────────────────────────────────────────────
+function JournalEntryModal({entry,onClose,onSave,onDelete,confirmDel}){
+  const [editing,setEditing]=useState(false);
+  const [form,setForm]=useState({
+    date:entry.date,duration:entry.duration,type:entry.type,
+    techniques:entry.techniques||"",notes:entry.notes||"",learnings:entry.learnings||""
+  });
+  const [saving,setSaving]=useState(false);
+
+  const handleSave=async()=>{
+    setSaving(true);
+    await onSave(entry.id,{...form,duration:Number(form.duration)});
+    setSaving(false);
+    setEditing(false);
+  };
+
+  const SESSION_TYPES=["Gi","No-Gi","Open Mat","Drilling","Competition","Private"];
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(30,45,64,0.5)",zIndex:200,display:"flex",flexDirection:"column",justifyContent:"flex-end"}} onClick={onClose}>
+      <div style={{background:T.bg,borderRadius:"20px 20px 0 0",padding:"20px 16px 40px",maxHeight:"92vh",overflowY:"auto",animation:"slideUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
+        {/* Header */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div style={{fontFamily:"'DM Serif Display'",fontSize:22}}>{editing?"Edit Session":"Session Details"}</div>
+          <button onClick={onClose} style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:16,color:T.muted}}>✕</button>
+        </div>
+
+        {editing?(
+          <>
+            {/* Date + Duration */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+              <div>
+                <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Date</div>
+                <input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none"}}/>
+              </div>
+              <div>
+                <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Duration (min)</div>
+                <input type="number" value={form.duration} onChange={e=>setForm({...form,duration:e.target.value})} style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none"}}/>
+              </div>
+            </div>
+            {/* Session type */}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}}>Session Type</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {SESSION_TYPES.map(t=><button key={t} onClick={()=>setForm({...form,type:t})} style={{background:form.type===t?T.teal:T.surface,color:form.type===t?"#fff":T.muted,border:`1.5px solid ${form.type===t?T.teal:T.border}`,borderRadius:20,padding:"6px 14px",fontSize:12,cursor:"pointer",fontWeight:600}}>{t}</button>)}
+              </div>
+            </div>
+            {/* Key Learnings */}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>💡 Key Learnings</div>
+              <textarea value={form.learnings} onChange={e=>setForm({...form,learnings:e.target.value})} rows={4} maxLength={1000} placeholder="What clicked today?" style={{width:"100%",background:T.tealLight,border:`1.5px solid ${T.teal}44`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/>
+            </div>
+            {/* Techniques drilled */}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Techniques Drilled</div>
+              <input value={form.techniques} onChange={e=>setForm({...form,techniques:e.target.value})} placeholder="e.g. Armbar, Triangle, Back take..." style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none"}}/>
+            </div>
+            {/* Notes */}
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Notes</div>
+              <textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} rows={3} maxLength={500} placeholder="Anything else..." style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <Btn onClick={handleSave} disabled={saving} style={{flex:1,padding:"12px"}}>
+                {saving?<Spinner size={16} color="#fff"/>:"Save Changes ✓"}
+              </Btn>
+              <Btn onClick={()=>setEditing(false)} variant="ghost" style={{flex:1,padding:"12px"}}>Cancel</Btn>
+            </div>
+          </>
+        ):(
+          <>
+            {/* View mode */}
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
+              <Pill label={entry.type}/>
+              <Pill label={`${entry.duration} min`} color={T.orange} bg={T.orangeLight}/>
+              <Pill label={entry.date} color={T.muted} bg={T.cardAlt}/>
+            </div>
+            {form.learnings?(
+              <Card style={{background:T.tealLight,border:`1px solid ${T.teal}33`,marginBottom:10}}>
+                <div style={{fontSize:10,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}}>💡 Key Learnings</div>
+                <div style={{fontSize:13,color:T.text,lineHeight:1.7,whiteSpace:"pre-wrap"}}>{form.learnings}</div>
+              </Card>
+            ):null}
+            {form.techniques?(
+              <Card style={{marginBottom:10}}>
+                <div style={{fontSize:10,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}}>🥋 Techniques Drilled</div>
+                <div style={{fontSize:13,color:T.text,lineHeight:1.7}}>{form.techniques}</div>
+              </Card>
+            ):null}
+            {form.notes?(
+              <Card style={{marginBottom:10}}>
+                <div style={{fontSize:10,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}}>📝 Notes</div>
+                <div style={{fontSize:13,color:T.text,lineHeight:1.7,whiteSpace:"pre-wrap"}}>{form.notes}</div>
+              </Card>
+            ):null}
+            {!form.learnings&&!form.techniques&&!form.notes&&(
+              <div style={{textAlign:"center",color:T.muted,padding:"20px 0",fontSize:13,fontStyle:"italic"}}>No details recorded — tap Edit to add some.</div>
+            )}
+            <div style={{display:"flex",gap:8,marginTop:8}}>
+              <Btn onClick={()=>setEditing(true)} variant="secondary" style={{flex:1,padding:"12px"}}>✏️ Edit</Btn>
+              <button onClick={()=>onDelete(entry.id)}
+                style={{flex:1,padding:"12px",background:confirmDel===entry.id?"#fee2e2":"none",border:`1px solid ${confirmDel===entry.id?"#fca5a5":"#fca5a5"}`,borderRadius:12,color:"#dc2626",fontSize:13,fontWeight:700,cursor:"pointer",transition:"all 0.15s"}}>
+                {confirmDel===entry.id?"Tap again to confirm":"🗑 Delete"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -1184,6 +1458,7 @@ function CompScreen({user}){
   const [ibjjfBelt,setIbjjfBelt]=useState("White / Blue");
   const [ibjjfSearch,setIbjjfSearch]=useState("");
   const [savingEvent,setSavingEvent]=useState(null); // event index being saved
+  const [confirmDelComp,setConfirmDelComp]=useState(null);
   const saveTimer=useRef({});
 
   useEffect(()=>{
@@ -1213,9 +1488,15 @@ function CompScreen({user}){
   };
 
   const delComp=async(id)=>{
+    if(confirmDelComp!==id){
+      setConfirmDelComp(id);
+      setTimeout(()=>setConfirmDelComp(null),3000);
+      return;
+    }
     const{error}=await supabase.from("competitions").delete().eq("id",id);
     if(error){console.error("Failed to delete competition:",error.message);return;}
     setMyComps(c=>c.filter(x=>x.id!==id));
+    setConfirmDelComp(null);
   };
 
   // Add AI-found event to My Events — duplicate-safe
@@ -1352,7 +1633,10 @@ function CompScreen({user}){
                     {c.goal&&<div style={{fontSize:12,color:T.teal,marginTop:4}}>🎯 <strong>Goal:</strong> {c.goal}</div>}
                     {c.notes&&<div style={{fontSize:12,color:T.muted,marginTop:4,fontStyle:"italic"}}>{c.notes}</div>}
                   </div>
-                  <button onClick={()=>delComp(c.id)} style={{background:"none",border:"none",color:T.subtle,cursor:"pointer",fontSize:16}}>✕</button>
+                  <button onClick={()=>delComp(c.id)}
+                    style={{background:confirmDelComp===c.id?"#fee2e2":"none",border:confirmDelComp===c.id?"1px solid #fca5a5":"none",borderRadius:8,color:confirmDelComp===c.id?"#dc2626":T.subtle,cursor:"pointer",fontSize:confirmDelComp===c.id?10:16,fontWeight:700,padding:confirmDelComp===c.id?"4px 7px":"0",whiteSpace:"nowrap",flexShrink:0,transition:"all 0.15s"}}>
+                    {confirmDelComp===c.id?"Sure?":"✕"}
+                  </button>
                 </div>
               </Card>
             );
@@ -1399,7 +1683,7 @@ function CompScreen({user}){
               {/* Fallback links */}
               <div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${T.teal}22`}}>
                 <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8}}>NZ BJJ Resources</div>
-                {[{label:"NZBJJ — NZ Brazilian Jiu-Jitsu",url:"https://www.nzbjj.co.nz"},{label:"IBJJF Events",url:"https://ibjjf.com/events"},{label:"Facebook: Auckland BJJ Community",url:"https://www.facebook.com/groups/aucklandbjj"}].map(l=>(
+                {[{label:"NZ BJJ Federation",url:"https://www.nzbjjf.co.nz/"},{label:"Stealth Grappling — Event Calendar",url:"https://stealthgrappling.com/pages/event-calendar"},{label:"NZ Grappler — Comp Registrations",url:"https://nzgrappler.com/comp-registrations/"}].map(l=>(
                   <a key={l.label} href={l.url} target="_blank" rel="noreferrer" style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${T.border}`,textDecoration:"none"}}>
                     <span style={{fontSize:12,color:T.text,fontWeight:600}}>{l.label}</span><span style={{color:T.teal,fontSize:12}}>→</span>
                   </a>
@@ -1449,6 +1733,9 @@ function HomeScreen({user,setTab,onSignOut}){
   const [nameInput,setNameInput]=useState("");
   const [beltInput,setBeltInput]=useState("White");
   const [loading,setLoading]=useState(true);
+  const [feedback,setFeedback]=useState("");
+  const [feedbackSent,setFeedbackSent]=useState(false);
+  const [feedbackSaving,setFeedbackSaving]=useState(false);
 
   useEffect(()=>{
     Promise.all([
@@ -1465,6 +1752,14 @@ function HomeScreen({user,setTab,onSignOut}){
     const{error}=await supabase.from("profiles").upsert({id:user.id,name:nameInput,belt:beltInput,updated_at:new Date().toISOString()});
     if(error){console.error("Failed to save profile:",error.message);setNameInput(profile.name);setBeltInput(profile.belt);return;}
     setProfile({name:nameInput,belt:beltInput});setEditing(false);
+  };
+
+  const submitFeedback=async()=>{
+    if(!feedback.trim()) return;
+    setFeedbackSaving(true);
+    const{error}=await supabase.from("feedback").insert({user_id:user.id,message:feedback.trim()});
+    if(!error){setFeedbackSent(true);setFeedback("");}
+    setFeedbackSaving(false);
   };
 
   const thisWeek=entries.filter(e=>(new Date()-new Date(e.date))<7*86400000).length;
@@ -1544,9 +1839,29 @@ function HomeScreen({user,setTab,onSignOut}){
               </Card>
             </>
           )}
-          <div style={{background:`linear-gradient(135deg,${T.tealLight},${T.surface})`,border:`1px solid ${T.teal}22`,borderRadius:14,padding:"16px",textAlign:"center",marginTop:4,marginBottom:8}}>
-            <div style={{fontFamily:"'DM Serif Display'",fontStyle:"italic",fontSize:16,color:T.teal,lineHeight:1.5}}>"A black belt is just a white belt who never quit."</div>
-          </div>
+          {/* Beta feedback */}
+          <Card style={{border:`1.5px solid ${T.orange}33`,background:T.orangeLight,marginTop:4,marginBottom:8}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+              <span style={{background:T.orange,color:"#fff",borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700,letterSpacing:1}}>BETA</span>
+              <div style={{fontSize:13,fontWeight:700,color:T.text}}>Help us improve Openmat</div>
+            </div>
+            <div style={{fontSize:12,color:T.muted,lineHeight:1.6,marginBottom:10}}>The Openmat App is still in Beta. Please leave your feedback below so we can improve the App over the next few months.</div>
+            {feedbackSent?(
+              <div style={{background:T.greenLight,border:`1px solid ${T.green}44`,borderRadius:10,padding:"10px 14px",textAlign:"center"}}>
+                <div style={{fontSize:20,marginBottom:4}}>🙏</div>
+                <div style={{fontSize:13,fontWeight:700,color:T.green}}>Thanks for the feedback!</div>
+              </div>
+            ):(
+              <>
+                <textarea value={feedback} onChange={e=>setFeedback(e.target.value)} maxLength={500} rows={3}
+                  placeholder="What's working? What could be better? Any features you'd love to see?"
+                  style={{width:"100%",background:T.surface,border:`1.5px solid ${T.orange}44`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none",marginBottom:8}}/>
+                <Btn onClick={submitFeedback} disabled={feedbackSaving||!feedback.trim()} style={{width:"100%",padding:"11px",background:T.orange,boxShadow:`0 2px 8px ${T.orange}44`}}>
+                  {feedbackSaving?<Spinner size={16} color="#fff"/>:"Send Feedback →"}
+                </Btn>
+              </>
+            )}
+          </Card>
         </>
       )}
     </div>
