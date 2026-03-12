@@ -1,10 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-// ── 🔑 REPLACE THESE WITH YOUR SUPABASE CREDENTIALS ──────────────────────────
-const SUPABASE_URL = "https://vwfeouwokrvtcmoyrjxo.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3ZmVvdXdva3J2dGNtb3lyanhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2NDc4MDksImV4cCI6MjA4ODIyMzgwOX0.ZN3I_cqwG1UKV8_crqGRZJcHc9SicthD-yo0UBkwZ9k";
+// ── 🔑 SUPABASE CREDENTIALS ───────────────────────────────────────────────────
+// Store these in your .env.local file (never commit that file to git):
+//   NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+//   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+//
+// ⚠️  Also ensure Row Level Security (RLS) is ENABLED on all tables:
+//     profiles, journal_entries, custom_techniques, game_plan, competitions
+//     Each policy should use:  USING (user_id = auth.uid())
+//                              WITH CHECK (user_id = auth.uid())
 // ─────────────────────────────────────────────────────────────────────────────
+const SUPABASE_URL     = process.env.NEXT_PUBLIC_SUPABASE_URL     || "";
+const SUPABASE_ANON_KEY= process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY|| "";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -342,10 +350,15 @@ function useAudio(volume=0.7){
   const ctx=useRef(null);
   const getCtx=()=>{ if(!ctx.current) ctx.current=new(window.AudioContext||window.webkitAudioContext)(); return ctx.current; };
   const playTone=useCallback((freq,type,dur,vol=volume)=>{
-    try{ const ac=getCtx(),osc=ac.createOscillator(),gain=ac.createGain();
+    try{
+      const ac=getCtx();
+      // iOS Safari requires AudioContext to be resumed after a user gesture
+      if(ac.state==="suspended") ac.resume();
+      const osc=ac.createOscillator(),gain=ac.createGain();
       osc.connect(gain);gain.connect(ac.destination);osc.type=type;osc.frequency.value=freq;
       gain.gain.setValueAtTime(vol,ac.currentTime);gain.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+dur);
-      osc.start(ac.currentTime);osc.stop(ac.currentTime+dur); }catch(e){}
+      osc.start(ac.currentTime);osc.stop(ac.currentTime+dur);
+    }catch(e){}
   },[volume]);
   const ringRoundEnd=useCallback(()=>{ playTone(220,"sine",1.2);setTimeout(()=>playTone(165,"sine",0.8),120); },[playTone]);
   const ringRoundStart=useCallback(()=>{ playTone(880,"triangle",0.3);setTimeout(()=>playTone(1100,"triangle",0.4),150);setTimeout(()=>playTone(880,"triangle",0.5),300); },[playTone]);
@@ -577,8 +590,10 @@ function TechniqueScreen({user}){
   };
 
   const saveNewTech=async()=>{
+    if(!techForm.title.trim()){return;}
     setTechLoading(true);
-    const{data}=await supabase.from("custom_techniques").insert({user_id:user.id,...techForm}).select().single();
+    const{data,error}=await supabase.from("custom_techniques").insert({user_id:user.id,...techForm}).select().single();
+    if(error){console.error("Failed to save technique:",error.message);setTechLoading(false);return;}
     if(data){
       setMyTechs(p=>[data,...p]);
       if(techForm.category&&!myCategories.includes(techForm.category))
@@ -588,15 +603,20 @@ function TechniqueScreen({user}){
   };
 
   const saveEditTech=async(id,updated)=>{
-    await supabase.from("custom_techniques").update(updated).eq("id",id);
-    setMyTechs(p=>p.map(t=>t.id===id?{...t,...updated}:t));
+    const{error}=await supabase.from("custom_techniques").update(updated).eq("id",id);
+    if(error){console.error("Failed to update technique:",error.message);return;}
+    setMyTechs(p=>{
+      const next=p.map(t=>t.id===id?{...t,...updated}:t);
+      // Derive cats inside updater so we always work with the latest state
+      setMyCategories([...new Set(next.map(t=>t.category).filter(Boolean))]);
+      return next;
+    });
     setViewTech(t=>({...t,...updated}));
-    const cats=[...new Set(myTechs.map(t=>t.id===id?updated.category:t.category).filter(Boolean))];
-    setMyCategories(cats);
   };
 
   const delTech=async(id)=>{
-    await supabase.from("custom_techniques").delete().eq("id",id);
+    const{error}=await supabase.from("custom_techniques").delete().eq("id",id);
+    if(error){console.error("Failed to delete technique:",error.message);return;}
     const remaining=myTechs.filter(t=>t.id!==id);
     setMyTechs(remaining);
     setMyCategories([...new Set(remaining.map(t=>t.category).filter(Boolean))]);
@@ -876,7 +896,7 @@ function TechDetailModal({tech,onClose,onSave,onDelete,levelKeys,getLinkIcon}){
             </div>
             <div style={{marginBottom:16}}>
               <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Key Notes</div>
-              <textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} rows={4} style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/>
+              <textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} rows={4} maxLength={1000} style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/>
             </div>
             <div style={{display:"flex",gap:8,marginBottom:10}}>
               <Btn onClick={handleSave} style={{flex:1,padding:"12px"}}>Save Changes</Btn>
@@ -926,8 +946,15 @@ function JournalScreen({user}){
     if(data){
       setEntries(data);
       const days=[...new Set(data.map(x=>x.date))].sort().reverse();
-      let s=0,d=new Date();d.setHours(0,0,0,0);
-      for(const day of days){const dd=new Date(day);dd.setHours(0,0,0,0);if((d-dd)/86400000>1)break;s++;d=dd;}
+      let s=0;
+      // Use todayStr() for timezone-safe string comparison (avoids UTC offset issues in NZ)
+      let cursor=todayStr();
+      for(const day of days){
+        if(day===cursor){s++;// step cursor back one calendar day
+          const d=new Date(cursor+"T12:00:00");d.setDate(d.getDate()-1);
+          cursor=d.toISOString().split("T")[0];
+        }else{break;}
+      }
       setStreak(s);
     }
     setLoading(false);
@@ -936,13 +963,18 @@ function JournalScreen({user}){
 
   const saveEntry=async()=>{
     setSaving(true);
-    const{data}=await supabase.from("journal_entries").insert({user_id:user.id,...form,duration:Number(form.duration)}).select().single();
+    const{data,error}=await supabase.from("journal_entries").insert({user_id:user.id,...form,duration:Number(form.duration)}).select().single();
+    if(error){console.error("Failed to save journal entry:",error.message);setSaving(false);return;}
     if(data)setEntries(e=>[data,...e]);
     setSaving(false);setAdding(false);setShowExtra(false);
     setForm({date:todayStr(),duration:60,type:"Open Mat",techniques:"",notes:"",learnings:""});
   };
 
-  const delEntry=async(id)=>{await supabase.from("journal_entries").delete().eq("id",id);setEntries(e=>e.filter(x=>x.id!==id));};
+  const delEntry=async(id)=>{
+    const{error}=await supabase.from("journal_entries").delete().eq("id",id);
+    if(error){console.error("Failed to delete entry:",error.message);return;}
+    setEntries(e=>e.filter(x=>x.id!==id));
+  };
 
   const last7=Array.from({length:7}).map((_,i)=>{
     const d=new Date();d.setDate(d.getDate()-6+i);
@@ -999,15 +1031,15 @@ function JournalScreen({user}){
             </div>
             <div style={{marginBottom:14}}>
               <div style={{fontSize:11,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>💡 Key Learnings</div>
-              <textarea value={form.learnings} onChange={e=>setForm({...form,learnings:e.target.value})} rows={3} placeholder="What clicked today? Any 'aha' moments?" style={{width:"100%",background:T.tealLight,border:`1.5px solid ${T.teal}44`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/>
+              <textarea value={form.learnings} onChange={e=>setForm({...form,learnings:e.target.value})} rows={3} maxLength={1000} placeholder="What clicked today? Any 'aha' moments?" style={{width:"100%",background:T.tealLight,border:`1.5px solid ${T.teal}44`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/>
             </div>
             <button onClick={()=>setShowExtra(v=>!v)} style={{width:"100%",background:"none",border:`1px dashed ${T.border}`,borderRadius:10,padding:"10px",cursor:"pointer",color:T.muted,fontSize:13,fontWeight:600,marginBottom:showExtra?14:20}}>
               {showExtra?"▲ Hide details":"▼ Add more details (techniques, notes)"}
             </button>
             {showExtra&&(
               <>
-                <div style={{marginBottom:14}}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Techniques Drilled</div><textarea value={form.techniques} onChange={e=>setForm({...form,techniques:e.target.value})} rows={2} placeholder="e.g. Triangle setup, knee slice pass..." style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/></div>
-                <div style={{marginBottom:20}}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>General Notes</div><textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} rows={2} placeholder="How did the session feel?" style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/></div>
+                <div style={{marginBottom:14}}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Techniques Drilled</div><textarea value={form.techniques} onChange={e=>setForm({...form,techniques:e.target.value})} rows={2} maxLength={500} placeholder="e.g. Triangle setup, knee slice pass..." style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/></div>
+                <div style={{marginBottom:20}}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>General Notes</div><textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} rows={2} maxLength={500} placeholder="How did the session feel?" style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/></div>
               </>
             )}
             <Btn onClick={saveEntry} disabled={saving} style={{width:"100%",padding:"15px",fontSize:15}}>
@@ -1068,7 +1100,8 @@ function CalendarScreen({user}){
   };
   const saveEntry=async()=>{
     setSaving(true);
-    const{data}=await supabase.from("journal_entries").insert({user_id:user.id,...form,duration:Number(form.duration)}).select().single();
+    const{data,error}=await supabase.from("journal_entries").insert({user_id:user.id,...form,duration:Number(form.duration)}).select().single();
+    if(error){console.error("Failed to save entry:",error.message);setSaving(false);return;}
     if(data)setEntries(e=>[...e,data]);
     setSaving(false);setAdding(false);
     setForm({date:todayStr(),duration:60,type:"Gi",techniques:"",notes:"",learnings:""});
@@ -1134,7 +1167,7 @@ function CalendarScreen({user}){
             </div>
             <div style={{marginBottom:12}}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}}>Session Type</div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{["Gi","No-Gi","Open Mat","Drilling","Competition","Private"].map(t=><button key={t} onClick={()=>setForm({...form,type:t})} style={{background:form.type===t?T.teal:T.surface,color:form.type===t?"#fff":T.muted,border:`1.5px solid ${form.type===t?T.teal:T.border}`,borderRadius:20,padding:"6px 14px",fontSize:12,cursor:"pointer",fontWeight:600}}>{t}</button>)}</div></div>
             <div style={{marginBottom:12}}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Duration (min)</div><input type="number" value={form.duration} onChange={e=>setForm({...form,duration:e.target.value})} style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:14,outline:"none"}}/></div>
-            <div style={{marginBottom:16}}><div style={{fontSize:11,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>💡 Key Learnings</div><textarea value={form.learnings} onChange={e=>setForm({...form,learnings:e.target.value})} rows={3} placeholder="What did you work on? What clicked?" style={{width:"100%",background:T.tealLight,border:`1.5px solid ${T.teal}44`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/></div>
+            <div style={{marginBottom:16}}><div style={{fontSize:11,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>💡 Key Learnings</div><textarea value={form.learnings} onChange={e=>setForm({...form,learnings:e.target.value})} rows={3} maxLength={1000} placeholder="What did you work on? What clicked?" style={{width:"100%",background:T.tealLight,border:`1.5px solid ${T.teal}44`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/></div>
             <Btn onClick={saveEntry} disabled={saving} style={{width:"100%",padding:"14px",fontSize:15}}>{saving?<span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><Spinner size={16} color="#fff"/>Saving...</span>:"Save Session ✓"}</Btn>
           </div>
         </div>
@@ -1169,6 +1202,8 @@ function CompScreen({user}){
     supabase.from("competitions").select("*").eq("user_id",user.id).order("date",{ascending:true}).then(({data})=>{
       if(data)setMyComps(data);setCompsLoading(false);
     });
+    // Cleanup: clear all pending debounce timers on unmount
+    return()=>{ Object.values(saveTimer.current).forEach(clearTimeout); };
   },[user.id]);
 
   const saveGp=(pos,val)=>{
@@ -1180,21 +1215,25 @@ function CompScreen({user}){
   };
 
   const saveComp=async()=>{
-    const{data}=await supabase.from("competitions").insert({user_id:user.id,...compForm}).select().single();
+    const{data,error}=await supabase.from("competitions").insert({user_id:user.id,...compForm}).select().single();
+    if(error){console.error("Failed to save competition:",error.message);return;}
     if(data)setMyComps(c=>[...c,data].sort((a,b)=>new Date(a.date)-new Date(b.date)));
     setAddComp(false);setCompForm({name:"",date:"",weight:"",gi:"Gi",goal:"",notes:""});
   };
 
   const delComp=async(id)=>{
-    await supabase.from("competitions").delete().eq("id",id);
+    const{error}=await supabase.from("competitions").delete().eq("id",id);
+    if(error){console.error("Failed to delete competition:",error.message);return;}
     setMyComps(c=>c.filter(x=>x.id!==id));
   };
 
-  // Add AI-found event to My Events
+  // Add AI-found event to My Events — duplicate-safe
   const addAiEventToMyEvents=async(ev,idx)=>{
+    // Prevent double-tap: button is already disabled via savingEvent===idx
     setSavingEvent(idx);
     const row={user_id:user.id,name:ev.name,date:ev.date||"",weight:"",gi:"Gi",goal:"",notes:ev.location?`${ev.location}${ev.organiser?" · "+ev.organiser:""}`:"",};
-    const{data}=await supabase.from("competitions").insert(row).select().single();
+    const{data,error}=await supabase.from("competitions").insert(row).select().single();
+    if(error){console.error("Failed to save AI event:",error.message);setSavingEvent(null);return;}
     if(data)setMyComps(c=>[...c,data].sort((a,b)=>new Date(a.date)-new Date(b.date)));
     setSavingEvent(null);
   };
@@ -1203,22 +1242,26 @@ function CompScreen({user}){
     setEventsLoading(true);setEventsError("");setAiEvents([]);
     const futureYear=new Date().getFullYear();
     try{
+      const{data:{session}}=await supabase.auth.getSession();
       const res=await fetch("/api/claude",{
-        method:"POST",headers:{"Content-Type":"application/json"},
+        method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${session?.access_token}`},
         body:JSON.stringify({
           model:"claude-sonnet-4-20250514",max_tokens:1200,
           tools:[{type:"web_search_20250305",name:"web_search"}],
           messages:[{role:"user",content:`Search for UPCOMING (future dates only, after today ${todayStr()}) BJJ and Brazilian Jiu-Jitsu competitions, tournaments and open mats in Auckland and New Zealand in ${futureYear} and ${futureYear+1}. Only include events that have NOT yet happened. Return ONLY a valid JSON array with no markdown, no explanation. Each object: { "name": string, "date": "YYYY-MM-DD or null", "location": string, "organiser": string, "url": string or null }. Maximum 8 events. If no future events found, return [].`}],
         }),
       });
+      if(!res.ok){throw new Error(`API error: ${res.status}`);}
       const data=await res.json();
-      const text=data.content?.map(b=>b.type==="text"?b.text:"").join("")||"";
+      const text=(data.content||[]).map(b=>b.type==="text"?b.text:"").join("");
       const clean=text.replace(/```json|```/g,"").trim();
       const start=clean.indexOf("["),end=clean.lastIndexOf("]");
       if(start!==-1&&end!==-1){
-        const parsed=JSON.parse(clean.slice(start,end+1));
-        // Client-side filter: remove any events with a known past date
-        const future=parsed.filter(ev=>!ev.date||!isDatePast(ev.date));
+        let parsed;
+        try{ parsed=JSON.parse(clean.slice(start,end+1)); }
+        catch(parseErr){ setEventsError("Couldn't parse event data. Try again."); setEventsLoading(false); return; }
+        if(!Array.isArray(parsed)){ setEventsError("Unexpected response format. Try again."); setEventsLoading(false); return; }
+        const future=parsed.filter(ev=>ev&&typeof ev==="object"&&(!ev.date||!isDatePast(ev.date)));
         setAiEvents(future);
         if(future.length===0)setEventsError("No upcoming events found right now. Check the links below or try again later.");
       }else{
@@ -1267,7 +1310,7 @@ function CompScreen({user}){
                         {section.positions.map(({pos,ph})=>(
                           <div key={pos} style={{marginBottom:13}}>
                             <div style={{fontSize:11,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>{pos}</div>
-                            <textarea value={gameplan[pos]||""} onChange={e=>saveGp(pos,e.target.value)} rows={2} placeholder={ph} style={{width:"100%",background:T.surface,border:`1.5px solid ${gameplan[pos]?.trim()?T.teal+"55":T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none",lineHeight:1.5}}/>
+                            <textarea value={gameplan[pos]||""} onChange={e=>saveGp(pos,e.target.value)} rows={2} maxLength={500} placeholder={ph} style={{width:"100%",background:T.surface,border:`1.5px solid ${gameplan[pos]?.trim()?T.teal+"55":T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none",lineHeight:1.5}}/>
                           </div>
                         ))}
                       </div>
@@ -1429,7 +1472,8 @@ function HomeScreen({user,setTab,onSignOut}){
   },[user.id]);
 
   const saveProfile=async()=>{
-    await supabase.from("profiles").upsert({id:user.id,name:nameInput,belt:beltInput,updated_at:new Date().toISOString()});
+    const{error}=await supabase.from("profiles").upsert({id:user.id,name:nameInput,belt:beltInput,updated_at:new Date().toISOString()});
+    if(error){console.error("Failed to save profile:",error.message);setNameInput(profile.name);setBeltInput(profile.belt);return;}
     setProfile({name:nameInput,belt:beltInput});setEditing(false);
   };
 
