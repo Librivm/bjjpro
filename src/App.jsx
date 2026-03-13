@@ -924,291 +924,6 @@ function TechDetailModal({tech,onClose,onSave,onDelete,levelKeys,getLinkIcon}){
   );
 }
 
-// ── JOURNAL ───────────────────────────────────────────────────────────────────
-function JournalScreen({user}){
-  const [entries,setEntries]=useState([]);
-  const [loading,setLoading]=useState(true);
-  const [adding,setAdding]=useState(false);
-  const [saving,setSaving]=useState(false);
-  const [form,setForm]=useState({date:todayStr(),duration:60,type:"Open Mat",techniques:"",notes:"",learnings:""});
-  const [showExtra,setShowExtra]=useState(false);
-  const [streak,setStreak]=useState(0);
-  const [weeklyGoal,setWeeklyGoal]=useState(3);
-  const [goalInput,setGoalInput]=useState(3);
-  const [savingGoal,setSavingGoal]=useState(false);
-  const [editingGoal,setEditingGoal]=useState(false);
-  const [confirmDelEntry,setConfirmDelEntry]=useState(null);
-  const [viewEntry,setViewEntry]=useState(null); // entry being viewed/edited
-
-  // Mon–Sun week containing a given YYYY-MM-DD string
-  const getWeekKey=(dateStr)=>{
-    const d=new Date(dateStr+"T12:00:00");
-    const dow=d.getDay(); // 0=Sun,1=Mon...
-    const diffToMon=(dow===0?-6:1-dow);
-    const mon=new Date(d);mon.setDate(d.getDate()+diffToMon);
-    return mon.toISOString().split("T")[0]; // Monday of that week
-  };
-
-  const calcStreak=(entryList,goal)=>{
-    if(!goal||goal<=0) return 0;
-    // Build map: weekKey -> count
-    const weekCounts={};
-    entryList.forEach(e=>{
-      const wk=getWeekKey(e.date);
-      weekCounts[wk]=(weekCounts[wk]||0)+1;
-    });
-    // Get current week's Monday
-    const thisWeekKey=getWeekKey(todayStr());
-    // Build sorted list of all Mon keys that hit the goal, newest first
-    const hitWeeks=Object.keys(weekCounts).filter(wk=>weekCounts[wk]>=goal).sort().reverse();
-    if(hitWeeks.length===0) return 0;
-    // Walk back from current week counting consecutive hit weeks
-    let s=0;
-    let cursor=new Date(thisWeekKey+"T12:00:00");
-    for(let i=0;i<200;i++){
-      const key=cursor.toISOString().split("T")[0];
-      if(weekCounts[key]&&weekCounts[key]>=goal){
-        s++;
-        cursor.setDate(cursor.getDate()-7);
-      } else if(key===thisWeekKey){
-        // Current week hasn't hit goal yet — don't break streak, just don't count it
-        cursor.setDate(cursor.getDate()-7);
-        // but if we haven't started (s===0) keep going to check past weeks
-        // Actually if this week hasn't hit goal, streak from past is still valid
-        // Only break if we go further back and miss a week
-        // Re-check: if we're on the current week and it hasn't hit, just step back
-        continue;
-      } else {
-        break; // missed a past week
-      }
-    }
-    return s;
-  };
-
-  const fetchEntries=async()=>{
-    const[{data:j},{data:p}]=await Promise.all([
-      supabase.from("journal_entries").select("*").eq("user_id",user.id).order("date",{ascending:false}).order("created_at",{ascending:false}),
-      supabase.from("profiles").select("weekly_goal").eq("id",user.id).single(),
-    ]);
-    const goal=(p?.weekly_goal)||3;
-    if(j){
-      setEntries(j);
-      setStreak(calcStreak(j,goal));
-    }
-    setWeeklyGoal(goal);
-    setGoalInput(goal);
-    setLoading(false);
-  };
-  useEffect(()=>{fetchEntries();},[user.id]);
-
-  const saveGoal=async()=>{
-    setSavingGoal(true);
-    await supabase.from("profiles").upsert({id:user.id,weekly_goal:Number(goalInput),updated_at:new Date().toISOString()});
-    setWeeklyGoal(Number(goalInput));
-    setStreak(calcStreak(entries,Number(goalInput)));
-    setEditingGoal(false);setSavingGoal(false);
-  };
-
-  const saveEntry=async()=>{
-    setSaving(true);
-    const{data,error}=await supabase.from("journal_entries").insert({user_id:user.id,...form,duration:Number(form.duration)}).select().single();
-    if(error){console.error("Failed to save journal entry:",error.message);setSaving(false);return;}
-    if(data){
-      const updated=[data,...entries];
-      setEntries(updated);
-      setStreak(calcStreak(updated,weeklyGoal));
-    }
-    setSaving(false);setAdding(false);setShowExtra(false);
-    setForm({date:todayStr(),duration:60,type:"Open Mat",techniques:"",notes:"",learnings:""});
-  };
-
-  const delEntry=async(id)=>{
-    if(confirmDelEntry!==id){
-      setConfirmDelEntry(id);
-      setTimeout(()=>setConfirmDelEntry(null),3000);
-      return;
-    }
-    const{error}=await supabase.from("journal_entries").delete().eq("id",id);
-    if(error){console.error("Failed to delete entry:",error.message);return;}
-    const updated=entries.filter(x=>x.id!==id);
-    setEntries(updated);
-    setStreak(calcStreak(updated,weeklyGoal));
-    setConfirmDelEntry(null);
-    setViewEntry(null);
-  };
-
-  const updateEntry=async(id,fields)=>{
-    const{error}=await supabase.from("journal_entries").update(fields).eq("id",id);
-    if(error){console.error("Failed to update entry:",error.message);return;}
-    const updated=entries.map(x=>x.id===id?{...x,...fields}:x);
-    setEntries(updated);
-    setViewEntry(v=>v&&v.id===id?{...v,...fields}:v);
-  };
-
-  // Sessions this week (Mon–Sun)
-  const thisWeekKey=getWeekKey(todayStr());
-  const sessionsThisWeek=entries.filter(e=>getWeekKey(e.date)===thisWeekKey).length;
-  const goalHit=sessionsThisWeek>=weeklyGoal;
-
-  const last7=Array.from({length:7}).map((_,i)=>{
-    const d=new Date();d.setDate(d.getDate()-6+i);
-    const key=d.toISOString().split("T")[0];
-    return{key,label:dayName(key),trained:entries.some(e=>e.date===key)};
-  });
-  const totalMins=entries.reduce((a,e)=>a+Number(e.duration||0),0);
-
-  return(
-    <div style={{padding:"0 16px",animation:"fadeUp 0.4s ease"}}>
-      <SectionTitle sub="Track every session on the mats">Training Journal</SectionTitle>
-      <div style={{display:"flex",gap:8,marginBottom:12}}>
-        <StatBox label="Wk Streak" value={streak} icon="🔥" color={T.orange} bg={T.orangeLight}/>
-        <StatBox label="Sessions" value={entries.length} icon="🥋" color={T.teal} bg={T.tealLight}/>
-        <StatBox label="Hours" value={Math.floor(totalMins/60)} icon="⏱" color={T.green} bg={T.greenLight}/>
-      </div>
-      {/* Weekly Goal */}
-      <Card style={{background:goalHit?T.greenLight:T.cardAlt,border:`1.5px solid ${goalHit?T.green+"44":T.border}`,marginBottom:10}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div>
-            <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:3}}>Weekly Goal</div>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <div style={{fontFamily:"'DM Serif Display'",fontSize:22,color:goalHit?T.green:T.text}}>{sessionsThisWeek}<span style={{fontSize:14,color:T.muted,fontWeight:400}}> / {weeklyGoal}</span></div>
-              {goalHit&&<span style={{fontSize:13,color:T.green,fontWeight:700}}>✓ Goal hit!</span>}
-            </div>
-            <div style={{marginTop:6,display:"flex",gap:4}}>
-              {Array.from({length:weeklyGoal}).map((_,i)=>(
-                <div key={i} style={{width:28,height:8,borderRadius:4,background:i<sessionsThisWeek?(goalHit?T.green:T.teal):T.border,transition:"background 0.3s"}}/>
-              ))}
-            </div>
-          </div>
-          <button onClick={()=>{setEditingGoal(e=>!e);setGoalInput(weeklyGoal);}} style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,padding:"7px 12px",fontSize:12,fontWeight:700,color:T.muted,cursor:"pointer"}}>
-            {editingGoal?"✕":"Edit"}
-          </button>
-        </div>
-        {editingGoal&&(
-          <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${T.border}`,display:"flex",gap:8,alignItems:"center"}}>
-            <div style={{fontSize:12,color:T.muted,fontWeight:600}}>Sessions per week:</div>
-            <div style={{display:"flex",gap:6}}>
-              {[1,2,3,4,5,6,7].map(n=>(
-                <button key={n} onClick={()=>setGoalInput(n)} style={{width:32,height:32,borderRadius:8,border:`1.5px solid ${goalInput===n?T.teal:T.border}`,background:goalInput===n?T.teal:T.surface,color:goalInput===n?"#fff":T.muted,fontWeight:700,fontSize:13,cursor:"pointer"}}>{n}</button>
-              ))}
-            </div>
-            <Btn onClick={saveGoal} disabled={savingGoal} style={{padding:"6px 14px",fontSize:12,marginLeft:"auto"}}>
-              {savingGoal?<Spinner size={14} color="#fff"/>:"Save"}
-            </Btn>
-          </div>
-        )}
-      </Card>
-      <Card style={{background:T.cardAlt}}>
-        <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:4}}>Last 7 Days</div>
-        <div style={{fontSize:11,color:T.muted,marginBottom:10}}>Tap an empty day to log a session</div>
-        <div style={{display:"flex",justifyContent:"space-between"}}>
-          {last7.map(d=>(
-            <div key={d.key} style={{textAlign:"center"}} onClick={()=>{if(!d.trained){setForm(f=>({...f,date:d.key}));setAdding(true);}}}>
-              <div style={{width:34,height:34,borderRadius:10,background:d.trained?T.teal:T.surface,border:`1.5px solid ${d.trained?T.teal:T.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,marginBottom:4,color:"#fff",fontWeight:700,cursor:d.trained?"default":"pointer",transition:"transform 0.15s"}}
-                onMouseEnter={e=>{if(!d.trained)e.currentTarget.style.transform="scale(1.1)";}}
-                onMouseLeave={e=>{e.currentTarget.style.transform="scale(1)";}}>
-                {d.trained?"✓":""}
-              </div>
-              <div style={{fontSize:10,color:T.muted,fontWeight:600}}>{d.label}</div>
-            </div>
-          ))}
-        </div>
-      </Card>
-      <Btn onClick={()=>setAdding(true)} style={{width:"100%",padding:"14px",fontSize:15,marginBottom:14,marginTop:2}}>+ Log Today's Session</Btn>
-      {adding&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(30,45,64,0.5)",zIndex:100,display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
-          <div style={{background:T.bg,borderRadius:"20px 20px 0 0",padding:"20px 16px 36px",maxHeight:"92vh",overflowY:"auto",animation:"slideUp 0.35s ease"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-              <div style={{fontFamily:"'DM Serif Display'",fontSize:24}}>Log Session</div>
-              <button onClick={()=>{setAdding(false);setShowExtra(false);}} style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:16,color:T.muted}}>✕</button>
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
-              {[{l:"Date",k:"date",t:"date"},{l:"Duration (min)",k:"duration",t:"number"}].map(f=>(
-                <div key={f.k}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>{f.l}</div>
-                <input type={f.t} value={form[f.k]} onChange={e=>setForm({...form,[f.k]:e.target.value})} style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:14,outline:"none",colorScheme:"light"}}/></div>
-              ))}
-            </div>
-            <div style={{marginBottom:14}}>
-              <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8}}>Session Type</div>
-              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                {["Gi","No-Gi","Open Mat","Drilling","Competition","Private","Workout"].map(t=>(
-                  <button key={t} onClick={()=>setForm({...form,type:t})} style={{background:form.type===t?(t==="Workout"?T.green:T.teal):T.surface,color:form.type===t?"#fff":T.muted,border:`1.5px solid ${form.type===t?(t==="Workout"?T.green:T.teal):T.border}`,borderRadius:20,padding:"6px 14px",fontSize:12,cursor:"pointer",fontWeight:600}}>{t}</button>
-                ))}
-              </div>
-            </div>
-            {form.type==="Workout"?(
-              <>
-                <div style={{marginBottom:14}}>
-                  <div style={{fontSize:11,color:T.green,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>💪 Workout Type</div>
-                  <input value={form.techniques} onChange={e=>setForm({...form,techniques:e.target.value})} placeholder="e.g. Upper body, Legs, Cardio, Full body..."
-                    style={{width:"100%",background:T.greenLight,border:`1.5px solid ${T.green}44`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none"}}/>
-                </div>
-                <div style={{marginBottom:20}}>
-                  <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>General Notes</div>
-                  <textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} rows={3} placeholder="What did you work on? How did it go?"
-                    style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/>
-                </div>
-              </>
-            ):(
-              <>
-                <div style={{marginBottom:14}}>
-                  <div style={{fontSize:11,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>💡 Key Learnings</div>
-                  <textarea value={form.learnings} onChange={e=>setForm({...form,learnings:e.target.value})} rows={3} placeholder="What clicked today? Any 'aha' moments?" style={{width:"100%",background:T.tealLight,border:`1.5px solid ${T.teal}44`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/>
-                </div>
-                <button onClick={()=>setShowExtra(v=>!v)} style={{width:"100%",background:"none",border:`1px dashed ${T.border}`,borderRadius:10,padding:"10px",cursor:"pointer",color:T.muted,fontSize:13,fontWeight:600,marginBottom:showExtra?14:20}}>
-                  {showExtra?"▲ Hide details":"▼ Add more details (techniques, notes)"}
-                </button>
-                {showExtra&&(
-                  <>
-                    <div style={{marginBottom:14}}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Techniques Drilled</div><textarea value={form.techniques} onChange={e=>setForm({...form,techniques:e.target.value})} rows={2} placeholder="e.g. Triangle setup, knee slice pass..." style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/></div>
-                    <div style={{marginBottom:20}}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>General Notes</div><textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} rows={2} placeholder="How did the session feel?" style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/></div>
-                  </>
-                )}
-              </>
-            )}
-            <Btn onClick={saveEntry} disabled={saving} style={{width:"100%",padding:"15px",fontSize:15}}>
-              {saving?<span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><Spinner size={16} color="#fff"/>Saving...</span>:"Save Session ✓"}
-            </Btn>
-          </div>
-        </div>
-      )}
-      {loading&&<div style={{display:"flex",justifyContent:"center",padding:"40px 0"}}><Spinner size={32}/></div>}
-      {!loading&&entries.length===0&&<div style={{textAlign:"center",color:T.muted,padding:"40px 0"}}><div style={{fontSize:40,marginBottom:10}}>📓</div><div style={{fontFamily:"'DM Serif Display'",fontSize:20,color:T.text,marginBottom:4}}>No sessions yet</div><div style={{fontSize:13}}>Start logging your journey on the mats!</div></div>}
-      {entries.map(e=>(
-        <Card key={e.id} onClick={()=>setViewEntry(e)} style={{cursor:"pointer"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-            <div style={{flex:1}}>
-              <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:6,flexWrap:"wrap"}}><Pill label={e.type} color={e.type==="Workout"?T.green:T.teal} bg={e.type==="Workout"?T.greenLight:T.tealLight}/><span style={{fontSize:11,color:T.muted,fontFamily:"'JetBrains Mono'"}}>{e.date}</span><span style={{fontSize:11,color:T.muted}}>· {e.duration} min</span></div>
-              {e.type==="Workout"?(
-                <>
-                  {e.techniques&&<div style={{background:T.greenLight,border:`1px solid ${T.green}33`,borderRadius:8,padding:"8px 10px",marginBottom:6}}><div style={{fontSize:10,color:T.green,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:2}}>💪 Workout</div><div style={{fontSize:12,color:T.text,lineHeight:1.6}}>{e.techniques.slice(0,80)}{e.techniques.length>80?"...":""}</div></div>}
-                  {e.notes&&<div style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>{e.notes.slice(0,80)}{e.notes.length>80?"...":""}</div>}
-                </>
-              ):(
-                <>
-                  {e.learnings&&<div style={{background:T.tealLight,border:`1px solid ${T.teal}33`,borderRadius:8,padding:"8px 10px",marginBottom:6}}><div style={{fontSize:10,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:2}}>💡 Key Learnings</div><div style={{fontSize:12,color:T.text,lineHeight:1.6}}>{e.learnings.slice(0,120)}{e.learnings.length>120?"...":""}</div></div>}
-                  {e.techniques&&<div style={{fontSize:12,color:T.muted,marginBottom:2}}><span style={{color:T.text,fontWeight:600}}>Drilled: </span>{e.techniques.slice(0,80)}{e.techniques.length>80?"...":""}</div>}
-                  {e.notes&&<div style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>{e.notes.slice(0,80)}{e.notes.length>80?"...":""}</div>}
-                </>
-              )}
-            </div>
-            <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6,marginLeft:8,flexShrink:0}}>
-              <button onClick={ev=>{ev.stopPropagation();delEntry(e.id);}}
-                style={{background:confirmDelEntry===e.id?"#fee2e2":"none",border:confirmDelEntry===e.id?"1px solid #fca5a5":"none",borderRadius:8,color:confirmDelEntry===e.id?"#dc2626":T.subtle,cursor:"pointer",fontSize:confirmDelEntry===e.id?10:16,fontWeight:700,padding:confirmDelEntry===e.id?"4px 7px":"0",whiteSpace:"nowrap",transition:"all 0.15s"}}>
-                {confirmDelEntry===e.id?"Sure?":"✕"}
-              </button>
-              <span style={{fontSize:11,color:T.muted}}>→</span>
-            </div>
-          </div>
-        </Card>
-      ))}
-
-      {/* ── Entry detail / edit modal ── */}
-      {viewEntry&&<JournalEntryModal entry={viewEntry} onClose={()=>setViewEntry(null)} onSave={updateEntry} onDelete={delEntry} confirmDel={confirmDelEntry}/>}
-    </div>
-  );
-}
-
 // ── JOURNAL ENTRY MODAL ───────────────────────────────────────────────────────
 function JournalEntryModal({entry,onClose,onSave,onDelete,confirmDel}){
   const [editing,setEditing]=useState(false);
@@ -1321,28 +1036,136 @@ function JournalEntryModal({entry,onClose,onSave,onDelete,confirmDel}){
   );
 }
 
-// ── CALENDAR ──────────────────────────────────────────────────────────────────
-function CalendarScreen({user}){
-  const today=new Date();
-  const [viewDate,setViewDate]=useState(new Date(today.getFullYear(),today.getMonth(),1));
+// ── SCHEDULE (merged Journal + Calendar) ─────────────────────────────────────
+function ScheduleScreen({user}){
+  const [subTab,setSubTab]=useState("journal"); // "journal" | "calendar"
   const [entries,setEntries]=useState([]);
   const [comps,setComps]=useState([]);
-  const [selectedDay,setSelectedDay]=useState(null);
   const [loading,setLoading]=useState(true);
   const [adding,setAdding]=useState(false);
   const [saving,setSaving]=useState(false);
   const [showExtra,setShowExtra]=useState(false);
-  const [form,setForm]=useState({date:todayStr(),duration:60,type:"Gi",techniques:"",notes:"",learnings:""});
+  const [form,setForm]=useState({date:todayStr(),duration:60,type:"Open Mat",techniques:"",notes:"",learnings:""});
+  // Journal-specific
+  const [streak,setStreak]=useState(0);
+  const [weeklyGoal,setWeeklyGoal]=useState(3);
+  const [goalInput,setGoalInput]=useState(3);
+  const [savingGoal,setSavingGoal]=useState(false);
+  const [editingGoal,setEditingGoal]=useState(false);
+  const [confirmDelEntry,setConfirmDelEntry]=useState(null);
+  const [viewEntry,setViewEntry]=useState(null);
+  // Calendar-specific
+  const today=new Date();
+  const [viewDate,setViewDate]=useState(new Date(today.getFullYear(),today.getMonth(),1));
+  const [selectedDay,setSelectedDay]=useState(null);
 
-  useEffect(()=>{
-    Promise.all([
-      supabase.from("journal_entries").select("*").eq("user_id",user.id),
-      supabase.from("competitions").select("*").eq("user_id",user.id),
-    ]).then(([{data:j},{data:c}])=>{
-      if(j)setEntries(j);if(c)setComps(c);setLoading(false);
+  const getWeekKey=(dateStr)=>{
+    const d=new Date(dateStr+"T12:00:00");
+    const dow=d.getDay();
+    const diffToMon=(dow===0?-6:1-dow);
+    const mon=new Date(d);mon.setDate(d.getDate()+diffToMon);
+    return mon.toISOString().split("T")[0];
+  };
+
+  const calcStreak=(entryList,goal)=>{
+    if(!goal||goal<=0) return 0;
+    const weekCounts={};
+    entryList.forEach(e=>{
+      const wk=getWeekKey(e.date);
+      weekCounts[wk]=(weekCounts[wk]||0)+1;
     });
-  },[user.id]);
+    const thisWeekKey=getWeekKey(todayStr());
+    let s=0;
+    let cursor=new Date(thisWeekKey+"T12:00:00");
+    for(let i=0;i<200;i++){
+      const key=cursor.toISOString().split("T")[0];
+      if(weekCounts[key]&&weekCounts[key]>=goal){
+        s++;
+        cursor.setDate(cursor.getDate()-7);
+      } else if(key===thisWeekKey){
+        cursor.setDate(cursor.getDate()-7);
+        continue;
+      } else {
+        break;
+      }
+    }
+    return s;
+  };
 
+  const fetchData=async()=>{
+    const[{data:j},{data:c},{data:p}]=await Promise.all([
+      supabase.from("journal_entries").select("*").eq("user_id",user.id).order("date",{ascending:false}).order("created_at",{ascending:false}),
+      supabase.from("competitions").select("*").eq("user_id",user.id),
+      supabase.from("profiles").select("weekly_goal").eq("id",user.id).single(),
+    ]);
+    const goal=(p?.weekly_goal)||3;
+    if(j){
+      setEntries(j);
+      setStreak(calcStreak(j,goal));
+    }
+    if(c)setComps(c);
+    setWeeklyGoal(goal);
+    setGoalInput(goal);
+    setLoading(false);
+  };
+  useEffect(()=>{fetchData();},[user.id]);
+
+  const saveGoal=async()=>{
+    setSavingGoal(true);
+    await supabase.from("profiles").upsert({id:user.id,weekly_goal:Number(goalInput),updated_at:new Date().toISOString()});
+    setWeeklyGoal(Number(goalInput));
+    setStreak(calcStreak(entries,Number(goalInput)));
+    setEditingGoal(false);setSavingGoal(false);
+  };
+
+  const saveEntry=async()=>{
+    setSaving(true);
+    const{data,error}=await supabase.from("journal_entries").insert({user_id:user.id,...form,duration:Number(form.duration)}).select().single();
+    if(error){console.error("Failed to save entry:",error.message);setSaving(false);return;}
+    if(data){
+      const updated=[data,...entries];
+      setEntries(updated);
+      setStreak(calcStreak(updated,weeklyGoal));
+    }
+    setSaving(false);setAdding(false);setShowExtra(false);
+    setForm({date:todayStr(),duration:60,type:"Open Mat",techniques:"",notes:"",learnings:""});
+  };
+
+  const delEntry=async(id)=>{
+    if(confirmDelEntry!==id){
+      setConfirmDelEntry(id);
+      setTimeout(()=>setConfirmDelEntry(null),3000);
+      return;
+    }
+    const{error}=await supabase.from("journal_entries").delete().eq("id",id);
+    if(error){console.error("Failed to delete entry:",error.message);return;}
+    const updated=entries.filter(x=>x.id!==id);
+    setEntries(updated);
+    setStreak(calcStreak(updated,weeklyGoal));
+    setConfirmDelEntry(null);
+    setViewEntry(null);
+  };
+
+  const updateEntry=async(id,fields)=>{
+    const{error}=await supabase.from("journal_entries").update(fields).eq("id",id);
+    if(error){console.error("Failed to update entry:",error.message);return;}
+    const updated=entries.map(x=>x.id===id?{...x,...fields}:x);
+    setEntries(updated);
+    setViewEntry(v=>v&&v.id===id?{...v,...fields}:v);
+  };
+
+  // Journal helpers
+  const thisWeekKey=getWeekKey(todayStr());
+  const sessionsThisWeek=entries.filter(e=>getWeekKey(e.date)===thisWeekKey).length;
+  const goalHit=sessionsThisWeek>=weeklyGoal;
+  const last7=Array.from({length:7}).map((_,i)=>{
+    const d=new Date();d.setDate(d.getDate()-6+i);
+    const key=d.toISOString().split("T")[0];
+    return{key,label:dayName(key),trained:entries.some(e=>e.date===key)};
+  });
+  const totalMins=entries.reduce((a,e)=>a+Number(e.duration||0),0);
+
+  // Calendar helpers
   const year=viewDate.getFullYear(),month=viewDate.getMonth();
   const firstDay=new Date(year,month,1).getDay();
   const daysInMonth=new Date(year,month+1,0).getDate();
@@ -1353,74 +1176,178 @@ function CalendarScreen({user}){
     const dateStr=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
     return{dateStr,trained:entries.filter(e=>e.date===dateStr),comp:comps.find(c=>c.date===dateStr)};
   };
-  const saveEntry=async()=>{
-    setSaving(true);
-    const{data,error}=await supabase.from("journal_entries").insert({user_id:user.id,...form,duration:Number(form.duration)}).select().single();
-    if(error){console.error("Failed to save entry:",error.message);setSaving(false);return;}
-    if(data)setEntries(e=>[...e,data]);
-    setSaving(false);setAdding(false);setShowExtra(false);
-    setForm({date:todayStr(),duration:60,type:"Gi",techniques:"",notes:"",learnings:""});
-  };
   const selectedData=selectedDay?getDayData(selectedDay):null;
+
   return(
     <div style={{padding:"0 16px",animation:"fadeUp 0.4s ease"}}>
-      <SectionTitle sub="Schedule and track your training month">Training Calendar</SectionTitle>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-        <button onClick={prevMonth} style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,width:38,height:38,cursor:"pointer",fontSize:18,color:T.text}}>‹</button>
-        <div style={{fontFamily:"'DM Serif Display'",fontSize:22,color:T.text}}>{monthName}</div>
-        <button onClick={nextMonth} style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,width:38,height:38,cursor:"pointer",fontSize:18,color:T.text}}>›</button>
-      </div>
-      <div style={{display:"flex",gap:12,marginBottom:12,flexWrap:"wrap"}}>
-        {[{color:T.teal,label:"Training"},{color:T.orange,label:"Competition"},{color:T.green,label:"Today"}].map(l=>(
-          <div key={l.label} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:T.muted}}><div style={{width:10,height:10,borderRadius:3,background:l.color}}/>{l.label}</div>
+      <SectionTitle sub="Log sessions and track your training">Schedule</SectionTitle>
+
+      {/* Sub-tab toggle */}
+      <div style={{display:"flex",background:T.surface,borderRadius:12,padding:4,marginBottom:16,border:`1px solid ${T.border}`}}>
+        {[["journal","📓 Journal"],["calendar","📅 Calendar"]].map(([t,l])=>(
+          <button key={t} onClick={()=>{setSubTab(t);setSelectedDay(null);}} style={{flex:1,padding:"9px 0",background:subTab===t?T.teal:"none",color:subTab===t?"#fff":T.muted,border:"none",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>{l}</button>
         ))}
       </div>
-      {loading?<div style={{display:"flex",justifyContent:"center",padding:"40px 0"}}><Spinner size={32}/></div>:(
-        <Card style={{padding:"12px"}}>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",marginBottom:8}}>
-            {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d=><div key={d} style={{textAlign:"center",fontSize:10,color:T.muted,fontWeight:700,padding:"4px 0"}}>{d}</div>)}
+
+      {/* ── JOURNAL SUB-TAB ── */}
+      {subTab==="journal"&&(
+        <>
+          <div style={{display:"flex",gap:8,marginBottom:12}}>
+            <StatBox label="Wk Streak" value={streak} icon="🔥" color={T.orange} bg={T.orangeLight}/>
+            <StatBox label="Sessions" value={entries.length} icon="🥋" color={T.teal} bg={T.tealLight}/>
+            <StatBox label="Hours" value={Math.floor(totalMins/60)} icon="⏱" color={T.green} bg={T.greenLight}/>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
-            {Array.from({length:firstDay}).map((_,i)=><div key={`e${i}`}/>)}
-            {Array.from({length:daysInMonth}).map((_,i)=>{
-              const day=i+1;
-              const{dateStr,trained,comp}=getDayData(day);
-              const isToday=dateStr===todayStr(),isSelected=selectedDay===day,hasTrain=trained.length>0;
-              return(
-                <div key={day} onClick={()=>setSelectedDay(selectedDay===day?null:day)}
-                  style={{aspectRatio:"1",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",borderRadius:10,cursor:"pointer",background:isSelected?T.teal:isToday?T.greenLight:hasTrain?T.tealLight:comp?T.orangeLight:"transparent",border:`1.5px solid ${isSelected?T.teal:isToday?T.green:hasTrain?T.teal+"44":comp?T.orange+"44":"transparent"}`,transition:"all 0.15s"}}>
-                  <span style={{fontSize:13,fontWeight:isToday?700:500,color:isSelected?"#fff":isToday?T.green:T.text}}>{day}</span>
-                  <div style={{display:"flex",gap:2,marginTop:1}}>
-                    {hasTrain&&<div style={{width:4,height:4,borderRadius:"50%",background:isSelected?"#fff":T.teal}}/>}
-                    {comp&&<div style={{width:4,height:4,borderRadius:"50%",background:isSelected?"#fff":T.orange}}/>}
-                  </div>
+          {/* Weekly Goal */}
+          <Card style={{background:goalHit?T.greenLight:T.cardAlt,border:`1.5px solid ${goalHit?T.green+"44":T.border}`,marginBottom:10}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div>
+                <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:3}}>Weekly Goal</div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{fontFamily:"'DM Serif Display'",fontSize:22,color:goalHit?T.green:T.text}}>{sessionsThisWeek}<span style={{fontSize:14,color:T.muted,fontWeight:400}}> / {weeklyGoal}</span></div>
+                  {goalHit&&<span style={{fontSize:13,color:T.green,fontWeight:700}}>✓ Goal hit!</span>}
                 </div>
-              );
-            })}
-          </div>
-        </Card>
-      )}
-      {selectedDay&&selectedData&&(
-        <div style={{animation:"fadeUp 0.2s ease"}}>
-          <div style={{fontFamily:"'DM Serif Display'",fontSize:18,color:T.text,margin:"14px 0 10px"}}>{selectedData.dateStr}</div>
-          {selectedData.comp&&<Card style={{borderLeft:`4px solid ${T.orange}`,marginBottom:8}}><div style={{display:"flex",gap:8,alignItems:"center"}}><span style={{fontSize:22}}>🏆</span><div><div style={{fontWeight:700,fontSize:14}}>{selectedData.comp.name||"Competition"}</div><div style={{fontSize:12,color:T.muted}}>{selectedData.comp.weight} · {selectedData.comp.gi}</div></div></div></Card>}
-          {selectedData.trained.map(e=>(
-            <Card key={e.id} style={{borderLeft:`4px solid ${T.teal}`}}>
-              <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginBottom:4}}><Pill label={e.type}/><span style={{fontSize:11,color:T.muted}}>{e.duration} min</span></div>
-              {e.learnings&&<div style={{fontSize:12,color:T.text,marginTop:4}}>{e.learnings.slice(0,100)}{e.learnings.length>100?"...":""}</div>}
+                <div style={{marginTop:6,display:"flex",gap:4}}>
+                  {Array.from({length:weeklyGoal}).map((_,i)=>(
+                    <div key={i} style={{width:28,height:8,borderRadius:4,background:i<sessionsThisWeek?(goalHit?T.green:T.teal):T.border,transition:"background 0.3s"}}/>
+                  ))}
+                </div>
+              </div>
+              <button onClick={()=>{setEditingGoal(e=>!e);setGoalInput(weeklyGoal);}} style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,padding:"7px 12px",fontSize:12,fontWeight:700,color:T.muted,cursor:"pointer"}}>
+                {editingGoal?"✕":"Edit"}
+              </button>
+            </div>
+            {editingGoal&&(
+              <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${T.border}`,display:"flex",gap:8,alignItems:"center"}}>
+                <div style={{fontSize:12,color:T.muted,fontWeight:600}}>Sessions per week:</div>
+                <div style={{display:"flex",gap:6}}>
+                  {[1,2,3,4,5,6,7].map(n=>(
+                    <button key={n} onClick={()=>setGoalInput(n)} style={{width:32,height:32,borderRadius:8,border:`1.5px solid ${goalInput===n?T.teal:T.border}`,background:goalInput===n?T.teal:T.surface,color:goalInput===n?"#fff":T.muted,fontWeight:700,fontSize:13,cursor:"pointer"}}>{n}</button>
+                  ))}
+                </div>
+                <Btn onClick={saveGoal} disabled={savingGoal} style={{padding:"6px 14px",fontSize:12,marginLeft:"auto"}}>
+                  {savingGoal?<Spinner size={14} color="#fff"/>:"Save"}
+                </Btn>
+              </div>
+            )}
+          </Card>
+          <Card style={{background:T.cardAlt}}>
+            <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:4}}>Last 7 Days</div>
+            <div style={{fontSize:11,color:T.muted,marginBottom:10}}>Tap an empty day to log a session</div>
+            <div style={{display:"flex",justifyContent:"space-between"}}>
+              {last7.map(d=>(
+                <div key={d.key} style={{textAlign:"center"}} onClick={()=>{if(!d.trained){setForm(f=>({...f,date:d.key}));setAdding(true);}}}>
+                  <div style={{width:34,height:34,borderRadius:10,background:d.trained?T.teal:T.surface,border:`1.5px solid ${d.trained?T.teal:T.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,marginBottom:4,color:"#fff",fontWeight:700,cursor:d.trained?"default":"pointer",transition:"transform 0.15s"}}
+                    onMouseEnter={e=>{if(!d.trained)e.currentTarget.style.transform="scale(1.1)";}}
+                    onMouseLeave={e=>{e.currentTarget.style.transform="scale(1)";}}>
+                    {d.trained?"✓":""}
+                  </div>
+                  <div style={{fontSize:10,color:T.muted,fontWeight:600}}>{d.label}</div>
+                </div>
+              ))}
+            </div>
+          </Card>
+          <Btn onClick={()=>setAdding(true)} style={{width:"100%",padding:"14px",fontSize:15,marginBottom:14,marginTop:2}}>+ Log Today's Session</Btn>
+          {loading&&<div style={{display:"flex",justifyContent:"center",padding:"40px 0"}}><Spinner size={32}/></div>}
+          {!loading&&entries.length===0&&<div style={{textAlign:"center",color:T.muted,padding:"40px 0"}}><div style={{fontSize:40,marginBottom:10}}>📓</div><div style={{fontFamily:"'DM Serif Display'",fontSize:20,color:T.text,marginBottom:4}}>No sessions yet</div><div style={{fontSize:13}}>Start logging your journey on the mats!</div></div>}
+          {entries.map(e=>(
+            <Card key={e.id} onClick={()=>setViewEntry(e)} style={{cursor:"pointer"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                <div style={{flex:1}}>
+                  <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:6,flexWrap:"wrap"}}><Pill label={e.type} color={e.type==="Workout"?T.green:T.teal} bg={e.type==="Workout"?T.greenLight:T.tealLight}/><span style={{fontSize:11,color:T.muted,fontFamily:"'JetBrains Mono'"}}>{e.date}</span><span style={{fontSize:11,color:T.muted}}>· {e.duration} min</span></div>
+                  {e.type==="Workout"?(
+                    <>
+                      {e.techniques&&<div style={{background:T.greenLight,border:`1px solid ${T.green}33`,borderRadius:8,padding:"8px 10px",marginBottom:6}}><div style={{fontSize:10,color:T.green,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:2}}>💪 Workout</div><div style={{fontSize:12,color:T.text,lineHeight:1.6}}>{e.techniques.slice(0,80)}{e.techniques.length>80?"...":""}</div></div>}
+                      {e.notes&&<div style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>{e.notes.slice(0,80)}{e.notes.length>80?"...":""}</div>}
+                    </>
+                  ):(
+                    <>
+                      {e.learnings&&<div style={{background:T.tealLight,border:`1px solid ${T.teal}33`,borderRadius:8,padding:"8px 10px",marginBottom:6}}><div style={{fontSize:10,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:2}}>💡 Key Learnings</div><div style={{fontSize:12,color:T.text,lineHeight:1.6}}>{e.learnings.slice(0,120)}{e.learnings.length>120?"...":""}</div></div>}
+                      {e.techniques&&<div style={{fontSize:12,color:T.muted,marginBottom:2}}><span style={{color:T.text,fontWeight:600}}>Drilled: </span>{e.techniques.slice(0,80)}{e.techniques.length>80?"...":""}</div>}
+                      {e.notes&&<div style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>{e.notes.slice(0,80)}{e.notes.length>80?"...":""}</div>}
+                    </>
+                  )}
+                </div>
+                <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6,marginLeft:8,flexShrink:0}}>
+                  <button onClick={ev=>{ev.stopPropagation();delEntry(e.id);}}
+                    style={{background:confirmDelEntry===e.id?"#fee2e2":"none",border:confirmDelEntry===e.id?"1px solid #fca5a5":"none",borderRadius:8,color:confirmDelEntry===e.id?"#dc2626":T.subtle,cursor:"pointer",fontSize:confirmDelEntry===e.id?10:16,fontWeight:700,padding:confirmDelEntry===e.id?"4px 7px":"0",whiteSpace:"nowrap",transition:"all 0.15s"}}>
+                    {confirmDelEntry===e.id?"Sure?":"✕"}
+                  </button>
+                  <span style={{fontSize:11,color:T.muted}}>→</span>
+                </div>
+              </div>
             </Card>
           ))}
-          {selectedData.trained.length===0&&!selectedData.comp&&<Btn onClick={()=>{setForm(f=>({...f,date:selectedData.dateStr}));setAdding(true);}} style={{width:"100%",padding:"12px",marginBottom:4}}>+ Log Session for This Day</Btn>}
-        </div>
+        </>
       )}
+
+      {/* ── CALENDAR SUB-TAB ── */}
+      {subTab==="calendar"&&(
+        <>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+            <button onClick={prevMonth} style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,width:38,height:38,cursor:"pointer",fontSize:18,color:T.text}}>‹</button>
+            <div style={{fontFamily:"'DM Serif Display'",fontSize:22,color:T.text}}>{monthName}</div>
+            <button onClick={nextMonth} style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,width:38,height:38,cursor:"pointer",fontSize:18,color:T.text}}>›</button>
+          </div>
+          <div style={{display:"flex",gap:12,marginBottom:12,flexWrap:"wrap"}}>
+            {[{color:T.teal,label:"Training"},{color:T.orange,label:"Competition"},{color:T.green,label:"Today"}].map(l=>(
+              <div key={l.label} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:T.muted}}><div style={{width:10,height:10,borderRadius:3,background:l.color}}/>{l.label}</div>
+            ))}
+          </div>
+          {loading?<div style={{display:"flex",justifyContent:"center",padding:"40px 0"}}><Spinner size={32}/></div>:(
+            <Card style={{padding:"12px"}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",marginBottom:8}}>
+                {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d=><div key={d} style={{textAlign:"center",fontSize:10,color:T.muted,fontWeight:700,padding:"4px 0"}}>{d}</div>)}
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+                {Array.from({length:firstDay}).map((_,i)=><div key={`e${i}`}/>)}
+                {Array.from({length:daysInMonth}).map((_,i)=>{
+                  const day=i+1;
+                  const{dateStr,trained,comp}=getDayData(day);
+                  const isToday=dateStr===todayStr(),isSelected=selectedDay===day,hasTrain=trained.length>0;
+                  return(
+                    <div key={day} onClick={()=>setSelectedDay(selectedDay===day?null:day)}
+                      style={{aspectRatio:"1",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",borderRadius:10,cursor:"pointer",background:isSelected?T.teal:isToday?T.greenLight:hasTrain?T.tealLight:comp?T.orangeLight:"transparent",border:`1.5px solid ${isSelected?T.teal:isToday?T.green:hasTrain?T.teal+"44":comp?T.orange+"44":"transparent"}`,transition:"all 0.15s"}}>
+                      <span style={{fontSize:13,fontWeight:isToday?700:500,color:isSelected?"#fff":isToday?T.green:T.text}}>{day}</span>
+                      <div style={{display:"flex",gap:2,marginTop:1}}>
+                        {hasTrain&&<div style={{width:4,height:4,borderRadius:"50%",background:isSelected?"#fff":T.teal}}/>}
+                        {comp&&<div style={{width:4,height:4,borderRadius:"50%",background:isSelected?"#fff":T.orange}}/>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
+          {selectedDay&&selectedData&&(
+            <div style={{animation:"fadeUp 0.2s ease"}}>
+              <div style={{fontFamily:"'DM Serif Display'",fontSize:18,color:T.text,margin:"14px 0 10px"}}>{selectedData.dateStr}</div>
+              {selectedData.comp&&<Card style={{borderLeft:`4px solid ${T.orange}`,marginBottom:8}}><div style={{display:"flex",gap:8,alignItems:"center"}}><span style={{fontSize:22}}>🏆</span><div><div style={{fontWeight:700,fontSize:14}}>{selectedData.comp.name||"Competition"}</div><div style={{fontSize:12,color:T.muted}}>{selectedData.comp.weight} · {selectedData.comp.gi}</div></div></div></Card>}
+              {selectedData.trained.map(e=>(
+                <Card key={e.id} style={{borderLeft:`4px solid ${T.teal}`}}>
+                  <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginBottom:4}}><Pill label={e.type}/><span style={{fontSize:11,color:T.muted}}>{e.duration} min</span></div>
+                  {e.learnings&&<div style={{fontSize:12,color:T.text,marginTop:4}}>{e.learnings.slice(0,100)}{e.learnings.length>100?"...":""}</div>}
+                </Card>
+              ))}
+              {selectedData.trained.length===0&&!selectedData.comp&&<Btn onClick={()=>{setForm(f=>({...f,date:selectedData.dateStr}));setAdding(true);}} style={{width:"100%",padding:"12px",marginBottom:4}}>+ Log Session for This Day</Btn>}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── SHARED LOG SESSION MODAL ── */}
       {adding&&(
         <div style={{position:"fixed",inset:0,background:"rgba(30,45,64,0.5)",zIndex:100,display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
           <div style={{background:T.bg,borderRadius:"20px 20px 0 0",padding:"20px 16px 36px",maxHeight:"92vh",overflowY:"auto",animation:"slideUp 0.35s ease"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-              <div style={{fontFamily:"'DM Serif Display'",fontSize:22}}>Log Session — {form.date}</div>
+              <div style={{fontFamily:"'DM Serif Display'",fontSize:24}}>Log Session</div>
               <button onClick={()=>{setAdding(false);setShowExtra(false);}} style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:16,color:T.muted}}>✕</button>
             </div>
-            <div style={{marginBottom:12}}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Duration (min)</div><input type="number" value={form.duration} onChange={e=>setForm({...form,duration:e.target.value})} style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:14,outline:"none"}}/></div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+              {[{l:"Date",k:"date",t:"date"},{l:"Duration (min)",k:"duration",t:"number"}].map(f=>(
+                <div key={f.k}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>{f.l}</div>
+                <input type={f.t} value={form[f.k]} onChange={e=>setForm({...form,[f.k]:e.target.value})} style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:14,outline:"none",colorScheme:"light"}}/></div>
+              ))}
+            </div>
             <div style={{marginBottom:14}}>
               <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8}}>Session Type</div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
@@ -1465,6 +1392,9 @@ function CalendarScreen({user}){
           </div>
         </div>
       )}
+
+      {/* ── Entry detail / edit modal ── */}
+      {viewEntry&&<JournalEntryModal entry={viewEntry} onClose={()=>setViewEntry(null)} onSave={updateEntry} onDelete={delEntry} confirmDel={confirmDelEntry}/>}
     </div>
   );
 }
@@ -2033,7 +1963,7 @@ function CompScreen({user}){
 }
 
 // ── HOME ──────────────────────────────────────────────────────────────────────
-function HomeScreen({user,setTab,onSignOut}){
+function HomeScreen({user,setTab,onSignOut,onReplayTutorial}){
   const [entries,setEntries]=useState([]);
   const [profile,setProfile]=useState({name:null,belt:"White",location:""});
   const [editing,setEditing]=useState(false);
@@ -2077,8 +2007,8 @@ function HomeScreen({user,setTab,onSignOut}){
   const greeting=hour<12?"Good morning":hour<17?"Good afternoon":"Good evening";
   const actions=[
     {icon:"⏱",label:"Sparring Timer",sub:"Set up rounds",action:()=>setTab("timer"),color:T.teal,bg:T.tealLight},
-    {icon:"📓",label:"Log Session",sub:"Record training",action:()=>setTab("journal"),color:T.orange,bg:T.orangeLight},
-    {icon:"📅",label:"Calendar",sub:"Schedule & track",action:()=>setTab("calendar"),color:T.green,bg:T.greenLight},
+    {icon:"📓",label:"Log Session",sub:"Record training",action:()=>setTab("schedule"),color:T.orange,bg:T.orangeLight},
+    {icon:"📅",label:"Calendar",sub:"Schedule & track",action:()=>setTab("schedule"),color:T.green,bg:T.greenLight},
     {icon:"🏆",label:"Compete",sub:"Game plan & events",action:()=>setTab("comp"),color:T.teal,bg:T.tealLight},
   ];
   const isNewUser=!loading&&(!profile.name||profile.name==="Fighter")&&entries.length===0;
@@ -2092,7 +2022,7 @@ function HomeScreen({user,setTab,onSignOut}){
           <div style={{fontSize:13,color:"rgba(255,255,255,0.8)",lineHeight:1.6,marginBottom:16}}>Your personal jiu-jitsu companion. Start by setting your name and belt rank, then log your first session on the mats.</div>
           <div style={{display:"flex",gap:8}}>
             <button onClick={()=>setEditing(true)} style={{flex:1,background:"#fff",border:"none",borderRadius:12,padding:"11px",fontWeight:700,fontSize:13,color:T.teal,cursor:"pointer"}}>Set Up Profile</button>
-            <button onClick={()=>setTab("journal")} style={{flex:1,background:"rgba(255,255,255,0.15)",border:"1.5px solid rgba(255,255,255,0.3)",borderRadius:12,padding:"11px",fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer"}}>Log First Session</button>
+            <button onClick={()=>setTab("schedule")} style={{flex:1,background:"rgba(255,255,255,0.15)",border:"1.5px solid rgba(255,255,255,0.3)",borderRadius:12,padding:"11px",fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer"}}>Log First Session</button>
           </div>
         </div>
       )}
@@ -2174,10 +2104,26 @@ function HomeScreen({user,setTab,onSignOut}){
             )}
           </Card>
 
+          {/* How to Use */}
+          <button onClick={onReplayTutorial} style={{width:"100%",background:T.tealLight,border:`1.5px solid ${T.teal}33`,borderRadius:14,padding:"14px",cursor:"pointer",display:"flex",alignItems:"center",gap:10,marginBottom:14,transition:"all 0.15s"}}
+            onMouseEnter={e=>{e.currentTarget.style.borderColor=T.teal;}}
+            onMouseLeave={e=>{e.currentTarget.style.borderColor=`${T.teal}33`;}}>
+            <span style={{fontSize:22}}>❓</span>
+            <div style={{textAlign:"left"}}>
+              <div style={{fontWeight:700,fontSize:13,color:T.text}}>How to Use Openmat</div>
+              <div style={{fontSize:11,color:T.muted,marginTop:1}}>Replay the app walkthrough</div>
+            </div>
+            <span style={{marginLeft:"auto",color:T.teal,fontSize:13}}>→</span>
+          </button>
+
           {/* Changelog */}
           <div style={{marginTop:4,marginBottom:8}}>
             <div style={{fontFamily:"'DM Serif Display'",fontSize:18,color:T.text,marginBottom:10}}>What's New</div>
             {[
+              {
+                version:"v0.6",date:"Mar 2025",
+                items:["Journal & Calendar merged into one Schedule tab with sub-tabs","App tutorial walkthrough on first launch with replay from Home screen","Bottom nav streamlined from 6 tabs to 5"],
+              },
               {
                 version:"v0.5",date:"Mar 2025",
                 items:["AI event search now uses your profile location — no more hardcoded region","Location field added to profile — set your city to find nearby events","Calendar log session modal now matches full journal form (Workout type, techniques, notes)","Vercel serverless API proxy for reliable Anthropic API calls"],
@@ -2222,19 +2168,75 @@ function HomeScreen({user,setTab,onSignOut}){
   );
 }
 
+// ── TUTORIAL WALKTHROUGH ──────────────────────────────────────────────────────
+const TUTORIAL_STEPS=[
+  {icon:"👋",title:"Welcome to Openmat!",desc:"Your personal jiu-jitsu companion. Let's take a quick tour of the app so you can get the most out of it."},
+  {icon:"📅",title:"Schedule",desc:"Log every training session, track your weekly streak, and view your training history on the calendar. All in one place."},
+  {icon:"📚",title:"Technique Library",desc:"Browse 12 categories of BJJ techniques across all skill levels. Save your favourites to your personal library with video links and notes."},
+  {icon:"🏆",title:"Competition Prep",desc:"Build a position-by-position game plan, find upcoming events near you with AI search, and review IBJJF rules for your division."},
+  {icon:"⏱",title:"Sparring Timer",desc:"Set up rounds with custom lengths, rest periods, and bell sounds. Go fullscreen and screen mirror to a TV for the whole gym to see."},
+  {icon:"🥋",title:"Set Up Your Profile",desc:"Head to the Home screen and tap 'Edit Profile' to set your name, belt rank, and location. Your location is used to find nearby events."},
+];
+
+function TutorialOverlay({onComplete}){
+  const [step,setStep]=useState(0);
+  const s=TUTORIAL_STEPS[step];
+  const isLast=step===TUTORIAL_STEPS.length-1;
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(13,27,42,0.92)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20,animation:"fadeUp 0.3s ease"}}>
+      <div style={{background:T.surface,borderRadius:24,padding:"32px 24px",maxWidth:380,width:"100%",textAlign:"center",boxShadow:"0 12px 40px rgba(0,0,0,0.3)",animation:"popIn 0.3s ease"}}>
+        <div style={{fontSize:52,marginBottom:16}}>{s.icon}</div>
+        <div style={{fontFamily:"'DM Serif Display'",fontSize:24,color:T.text,marginBottom:8,lineHeight:1.2}}>{s.title}</div>
+        <div style={{fontSize:14,color:T.muted,lineHeight:1.7,marginBottom:24,padding:"0 8px"}}>{s.desc}</div>
+        {/* Step dots */}
+        <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:20}}>
+          {TUTORIAL_STEPS.map((_,i)=>(
+            <div key={i} style={{width:i===step?20:8,height:8,borderRadius:4,background:i===step?T.teal:T.border,transition:"all 0.3s"}}/>
+          ))}
+        </div>
+        <div style={{display:"flex",gap:10}}>
+          {step>0&&(
+            <button onClick={()=>setStep(s=>s-1)} style={{flex:1,padding:"13px",background:"none",border:`1.5px solid ${T.border}`,borderRadius:12,color:T.muted,fontSize:14,fontWeight:700,cursor:"pointer"}}>← Back</button>
+          )}
+          {!isLast?(
+            <button onClick={()=>setStep(s=>s+1)} style={{flex:1,padding:"13px",background:T.teal,border:"none",borderRadius:12,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:`0 2px 12px ${T.teal}44`}}>Next →</button>
+          ):(
+            <button onClick={onComplete} style={{flex:1,padding:"13px",background:T.teal,border:"none",borderRadius:12,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:`0 2px 12px ${T.teal}44`}}>Get Started 🥋</button>
+          )}
+        </div>
+        {!isLast&&(
+          <button onClick={onComplete} style={{background:"none",border:"none",color:T.muted,fontSize:12,cursor:"pointer",marginTop:14,padding:0}}>Skip tutorial</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── ROOT APP ──────────────────────────────────────────────────────────────────
 export default function OpenmatApp(){
   const [session,setSession]=useState(undefined);
   const [tab,setTab]=useState("home");
+  const [showTutorial,setShowTutorial]=useState(false);
 
   useEffect(()=>{
     const s=document.createElement("style");s.textContent=GLOBAL_CSS;document.head.appendChild(s);return()=>document.head.removeChild(s);
   },[]);
   useEffect(()=>{
-    supabase.auth.getSession().then(({data:{session}})=>setSession(session));
+    supabase.auth.getSession().then(({data:{session}})=>{
+      setSession(session);
+      if(session&&!localStorage.getItem("openmat_tutorial_done")){
+        setShowTutorial(true);
+      }
+    });
     const{data:{subscription}}=supabase.auth.onAuthStateChange((_,session)=>setSession(session));
     return()=>subscription.unsubscribe();
   },[]);
+
+  const completeTutorial=()=>{
+    localStorage.setItem("openmat_tutorial_done","1");
+    setShowTutorial(false);
+  };
+  const replayTutorial=()=>setShowTutorial(true);
 
   const signOut=async()=>{await supabase.auth.signOut();setTab("home");};
 
@@ -2249,8 +2251,7 @@ export default function OpenmatApp(){
     {id:"home",icon:"⊞",label:"Home"},
     {id:"timer",icon:"⏱",label:"Timer"},
     {id:"techniques",icon:"📚",label:"Techniques"},
-    {id:"journal",icon:"📓",label:"Journal"},
-    {id:"calendar",icon:"📅",label:"Calendar"},
+    {id:"schedule",icon:"📅",label:"Schedule"},
     {id:"comp",icon:"🏆",label:"Compete"},
   ];
 
@@ -2261,11 +2262,10 @@ export default function OpenmatApp(){
         <div style={{fontSize:11,color:T.muted,fontFamily:"'JetBrains Mono'",fontWeight:600}}>{new Date().toLocaleDateString("en",{weekday:"short",month:"short",day:"numeric"})}</div>
       </div>
       <div style={{flex:1,overflowY:"auto",paddingTop:16,paddingBottom:80}}>
-        {tab==="home"       &&<HomeScreen user={session.user} setTab={setTab} onSignOut={signOut}/>}
+        {tab==="home"       &&<HomeScreen user={session.user} setTab={setTab} onSignOut={signOut} onReplayTutorial={replayTutorial}/>}
         {tab==="timer"      &&<TimerScreen/>}
         {tab==="techniques" &&<TechniqueScreen user={session.user}/>}
-        {tab==="journal"    &&<JournalScreen user={session.user}/>}
-        {tab==="calendar"   &&<CalendarScreen user={session.user}/>}
+        {tab==="schedule"   &&<ScheduleScreen user={session.user}/>}
         {tab==="comp"       &&<CompScreen user={session.user}/>}
       </div>
       <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:T.surface,borderTop:`1px solid ${T.border}`,display:"flex",zIndex:50,boxShadow:"0 -2px 12px rgba(30,45,64,0.08)"}}>
@@ -2276,6 +2276,7 @@ export default function OpenmatApp(){
           </button>
         ))}
       </div>
+      {showTutorial&&<TutorialOverlay onComplete={completeTutorial}/>}
     </div>
   );
 }
