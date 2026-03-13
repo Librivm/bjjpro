@@ -1169,39 +1169,22 @@ function JournalScreen({user}){
             <div style={{marginBottom:14}}>
               <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8}}>Session Type</div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                {["Gi","No-Gi","Open Mat","Drilling","Competition","Private","Workout"].map(t=>(
-                  <button key={t} onClick={()=>setForm({...form,type:t})} style={{background:form.type===t?(t==="Workout"?T.green:T.teal):T.surface,color:form.type===t?"#fff":T.muted,border:`1.5px solid ${form.type===t?(t==="Workout"?T.green:T.teal):T.border}`,borderRadius:20,padding:"6px 14px",fontSize:12,cursor:"pointer",fontWeight:600}}>{t}</button>
+                {["Gi","No-Gi","Open Mat","Drilling","Competition","Private"].map(t=>(
+                  <button key={t} onClick={()=>setForm({...form,type:t})} style={{background:form.type===t?T.teal:T.surface,color:form.type===t?"#fff":T.muted,border:`1.5px solid ${form.type===t?T.teal:T.border}`,borderRadius:20,padding:"6px 14px",fontSize:12,cursor:"pointer",fontWeight:600}}>{t}</button>
                 ))}
               </div>
             </div>
-            {form.type==="Workout"?(
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:11,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>💡 Key Learnings</div>
+              <textarea value={form.learnings} onChange={e=>setForm({...form,learnings:e.target.value})} rows={3} placeholder="What clicked today? Any 'aha' moments?" style={{width:"100%",background:T.tealLight,border:`1.5px solid ${T.teal}44`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/>
+            </div>
+            <button onClick={()=>setShowExtra(v=>!v)} style={{width:"100%",background:"none",border:`1px dashed ${T.border}`,borderRadius:10,padding:"10px",cursor:"pointer",color:T.muted,fontSize:13,fontWeight:600,marginBottom:showExtra?14:20}}>
+              {showExtra?"▲ Hide details":"▼ Add more details (techniques, notes)"}
+            </button>
+            {showExtra&&(
               <>
-                <div style={{marginBottom:14}}>
-                  <div style={{fontSize:11,color:T.green,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>💪 Workout Type</div>
-                  <input value={form.techniques} onChange={e=>setForm({...form,techniques:e.target.value})} placeholder="e.g. Upper body, Legs, Cardio, Full body..."
-                    style={{width:"100%",background:T.greenLight,border:`1.5px solid ${T.green}44`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none"}}/>
-                </div>
-                <div style={{marginBottom:20}}>
-                  <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>General Notes</div>
-                  <textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} rows={3} placeholder="What did you work on? How did it go?"
-                    style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/>
-                </div>
-              </>
-            ):(
-              <>
-                <div style={{marginBottom:14}}>
-                  <div style={{fontSize:11,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>💡 Key Learnings</div>
-                  <textarea value={form.learnings} onChange={e=>setForm({...form,learnings:e.target.value})} rows={3} placeholder="What clicked today? Any 'aha' moments?" style={{width:"100%",background:T.tealLight,border:`1.5px solid ${T.teal}44`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/>
-                </div>
-                <button onClick={()=>setShowExtra(v=>!v)} style={{width:"100%",background:"none",border:`1px dashed ${T.border}`,borderRadius:10,padding:"10px",cursor:"pointer",color:T.muted,fontSize:13,fontWeight:600,marginBottom:showExtra?14:20}}>
-                  {showExtra?"▲ Hide details":"▼ Add more details (techniques, notes)"}
-                </button>
-                {showExtra&&(
-                  <>
-                    <div style={{marginBottom:14}}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Techniques Drilled</div><textarea value={form.techniques} onChange={e=>setForm({...form,techniques:e.target.value})} rows={2} placeholder="e.g. Triangle setup, knee slice pass..." style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/></div>
-                    <div style={{marginBottom:20}}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>General Notes</div><textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} rows={2} placeholder="How did the session feel?" style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/></div>
-                  </>
-                )}
+                <div style={{marginBottom:14}}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Techniques Drilled</div><textarea value={form.techniques} onChange={e=>setForm({...form,techniques:e.target.value})} rows={2} placeholder="e.g. Triangle setup, knee slice pass..." style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/></div>
+                <div style={{marginBottom:20}}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>General Notes</div><textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} rows={2} placeholder="How did the session feel?" style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/></div>
               </>
             )}
             <Btn onClick={saveEntry} disabled={saving} style={{width:"100%",padding:"15px",fontSize:15}}>
@@ -1216,19 +1199,10 @@ function JournalScreen({user}){
         <Card key={e.id} onClick={()=>setViewEntry(e)} style={{cursor:"pointer"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
             <div style={{flex:1}}>
-              <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:6,flexWrap:"wrap"}}><Pill label={e.type} color={e.type==="Workout"?T.green:T.teal} bg={e.type==="Workout"?T.greenLight:T.tealLight}/><span style={{fontSize:11,color:T.muted,fontFamily:"'JetBrains Mono'"}}>{e.date}</span><span style={{fontSize:11,color:T.muted}}>· {e.duration} min</span></div>
-              {e.type==="Workout"?(
-                <>
-                  {e.techniques&&<div style={{background:T.greenLight,border:`1px solid ${T.green}33`,borderRadius:8,padding:"8px 10px",marginBottom:6}}><div style={{fontSize:10,color:T.green,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:2}}>💪 Workout</div><div style={{fontSize:12,color:T.text,lineHeight:1.6}}>{e.techniques.slice(0,80)}{e.techniques.length>80?"...":""}</div></div>}
-                  {e.notes&&<div style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>{e.notes.slice(0,80)}{e.notes.length>80?"...":""}</div>}
-                </>
-              ):(
-                <>
-                  {e.learnings&&<div style={{background:T.tealLight,border:`1px solid ${T.teal}33`,borderRadius:8,padding:"8px 10px",marginBottom:6}}><div style={{fontSize:10,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:2}}>💡 Key Learnings</div><div style={{fontSize:12,color:T.text,lineHeight:1.6}}>{e.learnings.slice(0,120)}{e.learnings.length>120?"...":""}</div></div>}
-                  {e.techniques&&<div style={{fontSize:12,color:T.muted,marginBottom:2}}><span style={{color:T.text,fontWeight:600}}>Drilled: </span>{e.techniques.slice(0,80)}{e.techniques.length>80?"...":""}</div>}
-                  {e.notes&&<div style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>{e.notes.slice(0,80)}{e.notes.length>80?"...":""}</div>}
-                </>
-              )}
+              <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:6,flexWrap:"wrap"}}><Pill label={e.type}/><span style={{fontSize:11,color:T.muted,fontFamily:"'JetBrains Mono'"}}>{e.date}</span><span style={{fontSize:11,color:T.muted}}>· {e.duration} min</span></div>
+              {e.learnings&&<div style={{background:T.tealLight,border:`1px solid ${T.teal}33`,borderRadius:8,padding:"8px 10px",marginBottom:6}}><div style={{fontSize:10,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:2}}>💡 Key Learnings</div><div style={{fontSize:12,color:T.text,lineHeight:1.6}}>{e.learnings.slice(0,120)}{e.learnings.length>120?"...":""}</div></div>}
+              {e.techniques&&<div style={{fontSize:12,color:T.muted,marginBottom:2}}><span style={{color:T.text,fontWeight:600}}>Drilled: </span>{e.techniques.slice(0,80)}{e.techniques.length>80?"...":""}</div>}
+              {e.notes&&<div style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>{e.notes.slice(0,80)}{e.notes.length>80?"...":""}</div>}
             </div>
             <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6,marginLeft:8,flexShrink:0}}>
               <button onClick={ev=>{ev.stopPropagation();delEntry(e.id);}}
@@ -1263,7 +1237,7 @@ function JournalEntryModal({entry,onClose,onSave,onDelete,confirmDel}){
     setEditing(false);
   };
 
-  const SESSION_TYPES=["Gi","No-Gi","Open Mat","Drilling","Competition","Private","Workout"];
+  const SESSION_TYPES=["Gi","No-Gi","Open Mat","Drilling","Competition","Private"];
 
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(30,45,64,0.5)",zIndex:200,display:"flex",flexDirection:"column",justifyContent:"flex-end"}} onClick={onClose}>
@@ -1291,7 +1265,7 @@ function JournalEntryModal({entry,onClose,onSave,onDelete,confirmDel}){
             <div style={{marginBottom:12}}>
               <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}}>Session Type</div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                {SESSION_TYPES.map(t=><button key={t} onClick={()=>setForm({...form,type:t})} style={{background:form.type===t?(t==="Workout"?T.green:T.teal):T.surface,color:form.type===t?"#fff":T.muted,border:`1.5px solid ${form.type===t?(t==="Workout"?T.green:T.teal):T.border}`,borderRadius:20,padding:"6px 14px",fontSize:12,cursor:"pointer",fontWeight:600}}>{t}</button>)}
+                {SESSION_TYPES.map(t=><button key={t} onClick={()=>setForm({...form,type:t})} style={{background:form.type===t?T.teal:T.surface,color:form.type===t?"#fff":T.muted,border:`1.5px solid ${form.type===t?T.teal:T.border}`,borderRadius:20,padding:"6px 14px",fontSize:12,cursor:"pointer",fontWeight:600}}>{t}</button>)}
               </div>
             </div>
             {/* Key Learnings */}
@@ -1888,45 +1862,6 @@ function HomeScreen({user,setTab,onSignOut}){
               </>
             )}
           </Card>
-
-          {/* Changelog */}
-          <div style={{marginTop:4,marginBottom:8}}>
-            <div style={{fontFamily:"'DM Serif Display'",fontSize:18,color:T.text,marginBottom:10}}>What's New</div>
-            {[
-              {
-                version:"v0.4",date:"Mar 2025",
-                items:["Workout session type added to journal — log gym sessions alongside BJJ","Music app shortcuts on timer screen (Spotify, YouTube Music, Apple Music)"],
-              },
-              {
-                version:"v0.3",date:"Feb 2025",
-                items:["My Library redesigned — category tiles with drill-in view","Recently Added strip shows your last 3 saved techniques","Save any standard library technique silently with one tap","AI event search now filters out past events automatically","Add AI-found events directly to My Events & Calendar"],
-              },
-              {
-                version:"v0.2",date:"Jan 2025",
-                items:["Comprehensive technique library — 12 categories, 10–15 techniques per level","Sparring timer fullscreen mode with landscape support","Training calendar with session & competition dots","IBJJF illegal moves reference with division filter","Competition game plan builder with auto-save"],
-              },
-              {
-                version:"v0.1",date:"Dec 2024",
-                items:["Initial Beta launch","Training journal with streak tracking","Technique library with favourites","User profiles & belt rank"],
-              },
-            ].map((rel,i)=>(
-              <div key={rel.version} style={{marginBottom:10,opacity:i===0?1:0.85}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                  <span style={{background:i===0?T.teal:T.cardAlt,color:i===0?"#fff":T.muted,borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700,fontFamily:"'JetBrains Mono'"}}>{rel.version}</span>
-                  <span style={{fontSize:11,color:T.muted}}>{rel.date}</span>
-                  {i===0&&<span style={{background:T.greenLight,color:T.green,borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700}}>Latest</span>}
-                </div>
-                <div style={{borderLeft:`2px solid ${i===0?T.teal:T.border}`,paddingLeft:12}}>
-                  {rel.items.map((item,j)=>(
-                    <div key={j} style={{display:"flex",gap:6,alignItems:"flex-start",marginBottom:4}}>
-                      <span style={{color:i===0?T.teal:T.subtle,fontSize:12,flexShrink:0,marginTop:1}}>•</span>
-                      <span style={{fontSize:12,color:i===0?T.text:T.muted,lineHeight:1.5}}>{item}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
         </>
       )}
     </div>
