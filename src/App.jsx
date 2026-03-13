@@ -264,8 +264,6 @@ const MENTAL_FIELDS = [
   {key:"points",   label:"Points Strategy",       ph:"e.g. Pull guard early, hunt sweeps, avoid giving guard pass..."},
   {key:"winning",  label:"If Winning on Points",  ph:"e.g. Maintain top pressure, avoid risky submissions..."},
   {key:"losing",   label:"If Losing on Points",   ph:"e.g. Go for the submission, pull guard for attacks..."},
-  {key:"strength", label:"My Biggest Strength",   ph:"e.g. My guard is strong — get to the floor ASAP..."},
-  {key:"routine",  label:"Pre-Match Routine",     ph:"e.g. Deep breathing, visualise first move, stay loose..."},
 ];
 
 const IBJJF_ILLEGAL_MOVES = [
@@ -1433,6 +1431,39 @@ function CalendarScreen({user}){
 }
 
 // ── COMPETITION ───────────────────────────────────────────────────────────────
+// ── Flow Section Component (must live outside CompScreen to prevent focus loss) ──
+function FlowSection({posId,side,color,d,allPositions,saveFlowField}){
+  const sideData=d||{};
+  const fields=[
+    {pKey:"p1",lKey:"p1leads",label:"① Primary",ph:"Your main attack / technique from this position..."},
+    {pKey:"p2",lKey:"p2leads",label:"② Backup",ph:"If primary is shut down or defended..."},
+    {pKey:"p3",lKey:"p3leads",label:"③ If that fails",ph:"Last resort, reset or survival plan..."},
+  ];
+  return(
+    <div>
+      {fields.map(({pKey,lKey,label},i)=>(
+        <div key={pKey} style={{marginBottom:10}}>
+          <div style={{fontSize:11,fontWeight:700,color:i===0?color:T.muted,textTransform:"uppercase",letterSpacing:0.8,marginBottom:4}}>{label}</div>
+          <textarea value={sideData[pKey]||""} onChange={e=>saveFlowField(posId,side,pKey,e.target.value)}
+            rows={2} maxLength={300} placeholder={fields[i].ph}
+            style={{width:"100%",background:T.surface,border:`1.5px solid ${sideData[pKey]?.trim()?color+"55":T.border}`,borderRadius:10,padding:"9px 12px",color:T.text,fontSize:13,outline:"none",resize:"none",lineHeight:1.5,marginBottom:4}}/>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:10,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,flexShrink:0}}>→ leads to</span>
+            <select value={sideData[lKey]||""} onChange={e=>saveFlowField(posId,side,lKey,e.target.value)}
+              style={{flex:1,background:sideData[lKey]?T.tealLight:T.surface,border:`1px solid ${sideData[lKey]?color+"55":T.border}`,borderRadius:8,padding:"5px 8px",color:sideData[lKey]?T.text:T.muted,fontSize:11,outline:"none",cursor:"pointer"}}>
+              <option value="">— optional —</option>
+              {allPositions.filter(p=>p.id!==posId).map(p=>(
+                <option key={p.id} value={p.id}>{p.icon} {p.label}</option>
+              ))}
+            </select>
+          </div>
+          {i<2&&<div style={{textAlign:"center",fontSize:11,color:T.subtle,margin:"4px 0"}}>↓ if blocked</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function CompScreen({user}){
   const [tab,setTab]=useState("gameplan");
   // Flow data: {posId: {attack:{p1,p1leads,p2,p2leads,p3,p3leads}, defence:{p1,p1leads,p2,p2leads,p3,p3leads}}, mental:{...}}
@@ -1579,39 +1610,7 @@ function CompScreen({user}){
   const levelKey=BELT_LEVEL_MAP[ibjjfBelt];
   const filteredMoves=IBJJF_ILLEGAL_MOVES.filter(m=>m.levels.includes(levelKey)&&(!ibjjfSearch||m.move.toLowerCase().includes(ibjjfSearch.toLowerCase())));
 
-  // Shared flow field renderer for attack/defence sides
-  const FlowSection=({posId,side,color,d})=>{
-    const sideData=d||{};
-    const fields=[
-      {pKey:"p1",lKey:"p1leads",label:"① Primary",ph:"Your main attack / technique from this position..."},
-      {pKey:"p2",lKey:"p2leads",label:"② Backup",ph:"If primary is shut down or defended..."},
-      {pKey:"p3",lKey:"p3leads",label:"③ If that fails",ph:"Last resort, reset or survival plan..."},
-    ];
-    return(
-      <div>
-        {fields.map(({pKey,lKey,label},i)=>(
-          <div key={pKey} style={{marginBottom:10}}>
-            <div style={{fontSize:11,fontWeight:700,color:i===0?color:T.muted,textTransform:"uppercase",letterSpacing:0.8,marginBottom:4}}>{label}</div>
-            <textarea value={sideData[pKey]||""} onChange={e=>saveFlowField(posId,side,pKey,e.target.value)}
-              rows={2} maxLength={300} placeholder={fields[i].ph}
-              style={{width:"100%",background:T.surface,border:`1.5px solid ${sideData[pKey]?.trim()?color+"55":T.border}`,borderRadius:10,padding:"9px 12px",color:T.text,fontSize:13,outline:"none",resize:"none",lineHeight:1.5,marginBottom:4}}/>
-            {/* Optional Leads To per option */}
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <span style={{fontSize:10,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,flexShrink:0}}>→ leads to</span>
-              <select value={sideData[lKey]||""} onChange={e=>saveFlowField(posId,side,lKey,e.target.value)}
-                style={{flex:1,background:sideData[lKey]?T.tealLight:T.surface,border:`1px solid ${sideData[lKey]?color+"55":T.border}`,borderRadius:8,padding:"5px 8px",color:sideData[lKey]?T.text:T.muted,fontSize:11,outline:"none",cursor:"pointer"}}>
-                <option value="">— optional —</option>
-                {allPositions.filter(p=>p.id!==posId).map(p=>(
-                  <option key={p.id} value={p.id}>{p.icon} {p.label}</option>
-                ))}
-              </select>
-            </div>
-            {i<2&&<div style={{textAlign:"center",fontSize:11,color:T.subtle,margin:"4px 0"}}>↓ if blocked</div>}
-          </div>
-        ))}
-      </div>
-    );
-  };
+
 
   return(
     <div style={{padding:"0 16px",animation:"fadeUp 0.4s ease"}}>
@@ -1697,19 +1696,19 @@ function CompScreen({user}){
                                 ...(hasSides.attack?[["attack","⚔️ Attack",T.orange]]:
                                 []),
                                 ...(hasSides.defence?[["defence","🛡️ Defence",T.teal]]:[]),
-                                ...(!pos.id.startsWith("custom_")&&pos.id==="mental"?[["mental","🧠 Mental",T.muted]]:[]),
+                                ...(!pos.id.startsWith("custom_")&&pos.id==="mental"?[["mental","📋 Mental",T.muted]]:[]),
                               ].map(([s,l,c])=>(
                                 <button key={s} onClick={()=>setOpenSide(s)}
                                   style={{flex:1,padding:"10px 0",background:"none",border:"none",borderBottom:`2.5px solid ${openSide===s?c:"transparent"}`,color:openSide===s?c:T.muted,fontWeight:700,fontSize:13,cursor:"pointer",transition:"all 0.15s"}}>{l}</button>
                               ))}
                               {["attack","defence"].includes(openSide)&&(
                                 <button key="mental_tab" onClick={()=>setOpenSide("mental")}
-                                  style={{flex:1,padding:"10px 0",background:"none",border:"none",borderBottom:`2.5px solid ${openSide==="mental"?"#8b5cf6":"transparent"}`,color:openSide==="mental"?"#8b5cf6":T.muted,fontWeight:700,fontSize:13,cursor:"pointer",transition:"all 0.15s"}}>🧠 Notes</button>
+                                  style={{flex:1,padding:"10px 0",background:"none",border:"none",borderBottom:`2.5px solid ${openSide==="mental"?"#8b5cf6":"transparent"}`,color:openSide==="mental"?"#8b5cf6":T.muted,fontWeight:700,fontSize:13,cursor:"pointer",transition:"all 0.15s"}}>📋 Notes</button>
                               )}
                             </div>
                             <div style={{padding:"0 14px"}}>
-                              {openSide==="attack"&&hasSides.attack&&<FlowSection posId={pos.id} side="attack" color={T.orange} d={d.attack}/>}
-                              {openSide==="defence"&&hasSides.defence&&<FlowSection posId={pos.id} side="defence" color={T.teal} d={d.defence}/>}
+                              {openSide==="attack"&&hasSides.attack&&<FlowSection posId={pos.id} side="attack" color={T.orange} d={d.attack} allPositions={allPositions} saveFlowField={saveFlowField}/>}
+                              {openSide==="defence"&&hasSides.defence&&<FlowSection posId={pos.id} side="defence" color={T.teal} d={d.defence} allPositions={allPositions} saveFlowField={saveFlowField}/>}
                               {openSide==="mental"&&(
                                 <div>
                                   {MENTAL_FIELDS.map(f=>(
