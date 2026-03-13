@@ -1331,6 +1331,7 @@ function CalendarScreen({user}){
   const [loading,setLoading]=useState(true);
   const [adding,setAdding]=useState(false);
   const [saving,setSaving]=useState(false);
+  const [showExtra,setShowExtra]=useState(false);
   const [form,setForm]=useState({date:todayStr(),duration:60,type:"Gi",techniques:"",notes:"",learnings:""});
 
   useEffect(()=>{
@@ -1357,7 +1358,7 @@ function CalendarScreen({user}){
     const{data,error}=await supabase.from("journal_entries").insert({user_id:user.id,...form,duration:Number(form.duration)}).select().single();
     if(error){console.error("Failed to save entry:",error.message);setSaving(false);return;}
     if(data)setEntries(e=>[...e,data]);
-    setSaving(false);setAdding(false);
+    setSaving(false);setAdding(false);setShowExtra(false);
     setForm({date:todayStr(),duration:60,type:"Gi",techniques:"",notes:"",learnings:""});
   };
   const selectedData=selectedDay?getDayData(selectedDay):null;
@@ -1414,15 +1415,53 @@ function CalendarScreen({user}){
       )}
       {adding&&(
         <div style={{position:"fixed",inset:0,background:"rgba(30,45,64,0.5)",zIndex:100,display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
-          <div style={{background:T.bg,borderRadius:"20px 20px 0 0",padding:"20px 16px 36px",maxHeight:"85vh",overflowY:"auto",animation:"slideUp 0.35s ease"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div style={{background:T.bg,borderRadius:"20px 20px 0 0",padding:"20px 16px 36px",maxHeight:"92vh",overflowY:"auto",animation:"slideUp 0.35s ease"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
               <div style={{fontFamily:"'DM Serif Display'",fontSize:22}}>Log Session — {form.date}</div>
-              <button onClick={()=>setAdding(false)} style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:16,color:T.muted}}>✕</button>
+              <button onClick={()=>{setAdding(false);setShowExtra(false);}} style={{background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:16,color:T.muted}}>✕</button>
             </div>
-            <div style={{marginBottom:12}}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}}>Session Type</div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{["Gi","No-Gi","Open Mat","Drilling","Competition","Private"].map(t=><button key={t} onClick={()=>setForm({...form,type:t})} style={{background:form.type===t?T.teal:T.surface,color:form.type===t?"#fff":T.muted,border:`1.5px solid ${form.type===t?T.teal:T.border}`,borderRadius:20,padding:"6px 14px",fontSize:12,cursor:"pointer",fontWeight:600}}>{t}</button>)}</div></div>
             <div style={{marginBottom:12}}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Duration (min)</div><input type="number" value={form.duration} onChange={e=>setForm({...form,duration:e.target.value})} style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:14,outline:"none"}}/></div>
-            <div style={{marginBottom:16}}><div style={{fontSize:11,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>💡 Key Learnings</div><textarea value={form.learnings} onChange={e=>setForm({...form,learnings:e.target.value})} rows={3} maxLength={1000} placeholder="What did you work on? What clicked?" style={{width:"100%",background:T.tealLight,border:`1.5px solid ${T.teal}44`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/></div>
-            <Btn onClick={saveEntry} disabled={saving} style={{width:"100%",padding:"14px",fontSize:15}}>{saving?<span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><Spinner size={16} color="#fff"/>Saving...</span>:"Save Session ✓"}</Btn>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8}}>Session Type</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {["Gi","No-Gi","Open Mat","Drilling","Competition","Private","Workout"].map(t=>(
+                  <button key={t} onClick={()=>setForm({...form,type:t})} style={{background:form.type===t?(t==="Workout"?T.green:T.teal):T.surface,color:form.type===t?"#fff":T.muted,border:`1.5px solid ${form.type===t?(t==="Workout"?T.green:T.teal):T.border}`,borderRadius:20,padding:"6px 14px",fontSize:12,cursor:"pointer",fontWeight:600}}>{t}</button>
+                ))}
+              </div>
+            </div>
+            {form.type==="Workout"?(
+              <>
+                <div style={{marginBottom:14}}>
+                  <div style={{fontSize:11,color:T.green,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>💪 Workout Type</div>
+                  <input value={form.techniques} onChange={e=>setForm({...form,techniques:e.target.value})} placeholder="e.g. Upper body, Legs, Cardio, Full body..."
+                    style={{width:"100%",background:T.greenLight,border:`1.5px solid ${T.green}44`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none"}}/>
+                </div>
+                <div style={{marginBottom:20}}>
+                  <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>General Notes</div>
+                  <textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} rows={3} placeholder="What did you work on? How did it go?"
+                    style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/>
+                </div>
+              </>
+            ):(
+              <>
+                <div style={{marginBottom:14}}>
+                  <div style={{fontSize:11,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>💡 Key Learnings</div>
+                  <textarea value={form.learnings} onChange={e=>setForm({...form,learnings:e.target.value})} rows={3} placeholder="What clicked today? Any 'aha' moments?" style={{width:"100%",background:T.tealLight,border:`1.5px solid ${T.teal}44`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/>
+                </div>
+                <button onClick={()=>setShowExtra(v=>!v)} style={{width:"100%",background:"none",border:`1px dashed ${T.border}`,borderRadius:10,padding:"10px",cursor:"pointer",color:T.muted,fontSize:13,fontWeight:600,marginBottom:showExtra?14:20}}>
+                  {showExtra?"▲ Hide details":"▼ Add more details (techniques, notes)"}
+                </button>
+                {showExtra&&(
+                  <>
+                    <div style={{marginBottom:14}}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Techniques Drilled</div><textarea value={form.techniques} onChange={e=>setForm({...form,techniques:e.target.value})} rows={2} placeholder="e.g. Triangle setup, knee slice pass..." style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/></div>
+                    <div style={{marginBottom:20}}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>General Notes</div><textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} rows={2} placeholder="How did the session feel?" style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/></div>
+                  </>
+                )}
+              </>
+            )}
+            <Btn onClick={saveEntry} disabled={saving} style={{width:"100%",padding:"15px",fontSize:15}}>
+              {saving?<span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><Spinner size={16} color="#fff"/>Saving...</span>:"Save Session ✓"}
+            </Btn>
           </div>
         </div>
       )}
@@ -1488,6 +1527,8 @@ function CompScreen({user}){
   const [ibjjfSearch,setIbjjfSearch]=useState("");
   const [savingEvent,setSavingEvent]=useState(null);
   const [confirmDelComp,setConfirmDelComp]=useState(null);
+  const [userLocation,setUserLocation]=useState("");
+  const [locationLoaded,setLocationLoaded]=useState(false);
   const saveTimer=useRef({});
 
   const allPositions=[...CORE_POSITIONS,...customPositions];
@@ -1510,6 +1551,10 @@ function CompScreen({user}){
     });
     supabase.from("competitions").select("*").eq("user_id",user.id).order("date",{ascending:true}).then(({data})=>{
       if(data)setMyComps(data);setCompsLoading(false);
+    });
+    supabase.from("profiles").select("location").eq("id",user.id).single().then(({data})=>{
+      if(data?.location)setUserLocation(data.location);
+      setLocationLoaded(true);
     });
     return()=>{ Object.values(saveTimer.current).forEach(clearTimeout); };
   },[user.id]);
@@ -1586,11 +1631,13 @@ function CompScreen({user}){
     setSavingEvent(null);
   };
   const fetchAiEvents=async()=>{
+    if(!userLocation.trim()){setEventsError("Set your location in your profile (Home → Edit Profile) to search for events.");return;}
     setEventsLoading(true);setEventsError("");setAiEvents([]);
     const futureYear=new Date().getFullYear();
+    const loc=userLocation.trim();
     try{
       const{data:{session}}=await supabase.auth.getSession();
-      const res=await fetch("/api/claude",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${session?.access_token}`},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1200,tools:[{type:"web_search_20250305",name:"web_search"}],messages:[{role:"user",content:`Search for UPCOMING (future dates only, after today ${todayStr()}) BJJ and Brazilian Jiu-Jitsu competitions, tournaments and open mats in Auckland and New Zealand in ${futureYear} and ${futureYear+1}. Only include events that have NOT yet happened. Return ONLY a valid JSON array with no markdown, no explanation. Each object: { "name": string, "date": "YYYY-MM-DD or null", "location": string, "organiser": string, "url": string or null }. Maximum 8 events. If no future events found, return [].`}]})});
+      const res=await fetch("/api/claude",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${session?.access_token}`},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1200,tools:[{type:"web_search_20250305",name:"web_search"}],messages:[{role:"user",content:`Search for UPCOMING (future dates only, after today ${todayStr()}) BJJ and Brazilian Jiu-Jitsu competitions, tournaments and open mats in and around ${loc} in ${futureYear} and ${futureYear+1}. Only include events that have NOT yet happened. Return ONLY a valid JSON array with no markdown, no explanation. Each object: { "name": string, "date": "YYYY-MM-DD or null", "location": string, "organiser": string, "url": string or null }. Maximum 8 events. If no future events found, return [].`}]})});
       if(!res.ok){throw new Error(`API error: ${res.status}`);}
       const data=await res.json();
       const text=(data.content||[]).map(b=>b.type==="text"?b.text:"").join("");
@@ -1906,9 +1953,9 @@ function CompScreen({user}){
           <div style={{borderTop:`1px solid ${T.border}`,paddingTop:16,marginTop:8}}>
             <div style={{fontFamily:"'DM Serif Display'",fontSize:20,color:T.text,marginBottom:10}}>Find Upcoming Events</div>
             <Card style={{background:T.tealLight,border:`1.5px solid ${T.teal}33`,marginBottom:12}}>
-              <div style={{fontWeight:700,fontSize:14,color:T.teal,marginBottom:4}}>🔍 AI Search — Auckland & NZ</div>
-              <div style={{fontSize:12,color:T.muted,marginBottom:10}}>Searches for future competitions only. Results may vary.</div>
-              <Btn onClick={fetchAiEvents} disabled={eventsLoading} style={{width:"100%",padding:"11px",fontSize:13}}>
+              <div style={{fontWeight:700,fontSize:14,color:T.teal,marginBottom:4}}>🔍 AI Event Search{userLocation?` — ${userLocation}`:""}</div>
+              <div style={{fontSize:12,color:T.muted,marginBottom:10}}>{userLocation?"Searches for future competitions in your area. Results may vary.":"Set your location in your profile to search for nearby events."}</div>
+              <Btn onClick={fetchAiEvents} disabled={eventsLoading||!userLocation.trim()} style={{width:"100%",padding:"11px",fontSize:13}}>
                 {eventsLoading?<span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><Spinner size={14} color="#fff"/>Searching...</span>:"Search Upcoming Events"}
               </Btn>
               {eventsError&&<div style={{fontSize:12,color:T.orange,marginTop:8}}>{eventsError}</div>}
@@ -1988,10 +2035,11 @@ function CompScreen({user}){
 // ── HOME ──────────────────────────────────────────────────────────────────────
 function HomeScreen({user,setTab,onSignOut}){
   const [entries,setEntries]=useState([]);
-  const [profile,setProfile]=useState({name:null,belt:"White"});
+  const [profile,setProfile]=useState({name:null,belt:"White",location:""});
   const [editing,setEditing]=useState(false);
   const [nameInput,setNameInput]=useState("");
   const [beltInput,setBeltInput]=useState("White");
+  const [locationInput,setLocationInput]=useState("");
   const [loading,setLoading]=useState(true);
   const [feedback,setFeedback]=useState("");
   const [feedbackSent,setFeedbackSent]=useState(false);
@@ -2003,15 +2051,15 @@ function HomeScreen({user,setTab,onSignOut}){
       supabase.from("profiles").select("*").eq("id",user.id).single(),
     ]).then(([{data:j},{data:p}])=>{
       if(j)setEntries(j);
-      if(p){setProfile(p);setNameInput(p.name);setBeltInput(p.belt);}
+      if(p){setProfile(p);setNameInput(p.name);setBeltInput(p.belt);setLocationInput(p.location||"");}
       setLoading(false);
     });
   },[user.id]);
 
   const saveProfile=async()=>{
-    const{error}=await supabase.from("profiles").upsert({id:user.id,name:nameInput,belt:beltInput,updated_at:new Date().toISOString()});
-    if(error){console.error("Failed to save profile:",error.message);setNameInput(profile.name);setBeltInput(profile.belt);return;}
-    setProfile({name:nameInput,belt:beltInput});setEditing(false);
+    const{error}=await supabase.from("profiles").upsert({id:user.id,name:nameInput,belt:beltInput,location:locationInput,updated_at:new Date().toISOString()});
+    if(error){console.error("Failed to save profile:",error.message);setNameInput(profile.name);setBeltInput(profile.belt);setLocationInput(profile.location||"");return;}
+    setProfile({name:nameInput,belt:beltInput,location:locationInput});setEditing(false);
   };
 
   const submitFeedback=async()=>{
@@ -2066,6 +2114,9 @@ function HomeScreen({user,setTab,onSignOut}){
           <input value={nameInput} onChange={e=>setNameInput(e.target.value)} style={{width:"100%",background:T.cardAlt,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:14,outline:"none",marginBottom:12}}/>
           <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8}}>Belt Rank</div>
           <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>{Object.keys(BELT_COLORS).map(b=><button key={b} onClick={()=>setBeltInput(b)} style={{background:beltInput===b?BELT_COLORS[b]:"none",color:beltInput===b?BELT_TEXT[b]:T.muted,border:`2px solid ${BELT_COLORS[b]}`,borderRadius:8,padding:"5px 14px",fontSize:12,cursor:"pointer",fontWeight:700}}>{b}</button>)}</div>
+          <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Location</div>
+          <input value={locationInput} onChange={e=>setLocationInput(e.target.value)} placeholder="e.g. Auckland, New Zealand" style={{width:"100%",background:T.cardAlt,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:14,outline:"none",marginBottom:12}}/>
+          <div style={{fontSize:11,color:T.muted,marginBottom:14,fontStyle:"italic"}}>Used for finding nearby BJJ events</div>
           <div style={{display:"flex",gap:8,marginBottom:8}}><Btn onClick={saveProfile} style={{flex:1,padding:"11px"}}>Save</Btn><Btn onClick={()=>setEditing(false)} variant="ghost" style={{flex:1,padding:"11px"}}>Cancel</Btn></div>
           <button onClick={onSignOut} style={{width:"100%",background:"none",border:`1px solid #fca5a5`,borderRadius:10,padding:"10px",color:"#dc2626",fontSize:13,fontWeight:600,cursor:"pointer"}}>Sign Out</button>
         </Card>
@@ -2128,6 +2179,10 @@ function HomeScreen({user,setTab,onSignOut}){
             <div style={{fontFamily:"'DM Serif Display'",fontSize:18,color:T.text,marginBottom:10}}>What's New</div>
             {[
               {
+                version:"v0.5",date:"Mar 2025",
+                items:["AI event search now uses your profile location — no more hardcoded region","Location field added to profile — set your city to find nearby events","Calendar log session modal now matches full journal form (Workout type, techniques, notes)","Vercel serverless API proxy for reliable Anthropic API calls"],
+              },
+              {
                 version:"v0.4",date:"Mar 2025",
                 items:["Workout session type added to journal — log gym sessions alongside BJJ","Music app shortcuts on timer screen (Spotify, YouTube Music, Apple Music)"],
               },
@@ -2143,7 +2198,7 @@ function HomeScreen({user,setTab,onSignOut}){
                 version:"v0.1",date:"Dec 2024",
                 items:["Initial Beta launch","Training journal with streak tracking","Technique library with favourites","User profiles & belt rank"],
               },
-            ].map((rel,i)=>(
+            ].slice(0,5).map((rel,i)=>(
               <div key={rel.version} style={{marginBottom:10,opacity:i===0?1:0.85}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
                   <span style={{background:i===0?T.teal:T.cardAlt,color:i===0?"#fff":T.muted,borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700,fontFamily:"'JetBrains Mono'"}}>{rel.version}</span>
