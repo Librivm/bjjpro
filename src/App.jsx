@@ -249,59 +249,23 @@ const CAT_ICONS = {
   "Guard Passing":"⚔️","Turtle & Turtle Attacks":"🐢","Escapes":"🚪","Clinch & Wrestling":"🤼",
 };
 
-const GAMEPLAN_SECTIONS = [
-  {category:"🥋 Guard Game",positions:[
-    {pos:"Preferred Guard Style",ph:"e.g. Closed guard, De La Riva, Lasso, Spider, X-Guard..."},
-    {pos:"Primary Sweep",ph:"e.g. Hip bump → kimura, Scissor sweep, X-guard to single leg..."},
-    {pos:"Secondary Sweep",ph:"e.g. Flower sweep if they posture, Sickle sweep from DLR..."},
-    {pos:"Main Submission from Guard",ph:"e.g. Triangle choke → armbar, Kimura trap system..."},
-    {pos:"Backup Submission from Guard",ph:"e.g. Omoplata if they roll out of triangle..."},
-    {pos:"Guard Recovery Plan",ph:"e.g. Frame and shrimp to re-guard, Knee shield, Turtle..."},
-  ]},
-  {category:"⚔️ Top Game & Passing",positions:[
-    {pos:"Primary Guard Pass",ph:"e.g. Torreando to knee slice combination..."},
-    {pos:"Secondary Guard Pass",ph:"e.g. Over-under pass if they block knee slice..."},
-    {pos:"Preferred Passing Side",ph:"e.g. Pass to left (their right) — my stronger side..."},
-    {pos:"Preferred Top Position",ph:"e.g. Side control → mount via knee-on-belly transition..."},
-    {pos:"Submission from Mount",ph:"e.g. Armbar to americana, Ezekiel, Cross collar choke..."},
-    {pos:"Submission from Side Control",ph:"e.g. Kimura, North-south choke, Katagatame..."},
-    {pos:"Knee on Belly Game",ph:"e.g. Use to force reaction → mount or take back..."},
-  ]},
-  {category:"🔒 Back Control & Finishing",positions:[
-    {pos:"Back Take Preference",ph:"e.g. From turtle, Arm drag from guard, Clock choke attempt..."},
-    {pos:"Primary Finish from Back",ph:"e.g. Rear naked choke, Bow & arrow..."},
-    {pos:"Body Position Preference",ph:"e.g. Body triangle preferred, Standard hooks if limited..."},
-    {pos:"If Opponent Takes My Back",ph:"e.g. Seat belt break, Roll to guard, Hip escape to half..."},
-  ]},
-  {category:"🤸 Standing & Takedowns",positions:[
-    {pos:"Opening Strategy",ph:"e.g. Pull guard at 3 seconds, Snap down to single leg..."},
-    {pos:"Primary Takedown",ph:"e.g. Double leg, Osoto gari, Ankle pick..."},
-    {pos:"Takedown Defence",ph:"e.g. Sprawl to front headlock, Whizzer to trip..."},
-    {pos:"Clinch Game",ph:"e.g. Underhooks → body lock, Collar tie → foot sweep..."},
-    {pos:"If Opponent Shoots First",ph:"e.g. Sprawl hard, go to guillotine or front headlock..."},
-  ]},
-  {category:"🦵 Leg Lock Game",positions:[
-    {pos:"Leg Lock Entry",ph:"e.g. Outside heel hook from Ashi Garami, Reap to 50/50..."},
-    {pos:"Primary Leg Attack",ph:"e.g. Heel hook, Ankle lock, Knee bar..."},
-    {pos:"Leg Lock Transitions",ph:"e.g. Outside to inside heel hook, Ankle lock to knee bar..."},
-    {pos:"Defending Opponent's Leg Locks",ph:"e.g. Toes up, Never cross feet, Hip escape direction..."},
-    {pos:"Ruleset Notes",ph:"e.g. Heel hooks legal? IBJJF vs submission-only rules..."},
-  ]},
-  {category:"🛡️ Escapes & Survival",positions:[
-    {pos:"Escape from Mount",ph:"e.g. Elbow-knee escape is primary, Trap & roll as backup..."},
-    {pos:"Escape from Side Control",ph:"e.g. Frame & shrimp to guard, Underhook & run the pipe..."},
-    {pos:"Escape from Turtle",ph:"e.g. Granby roll, Stand up, Roll to guard..."},
-    {pos:"Escape from Back",ph:"e.g. Chin tuck, hand fight, escape hips toward hook side..."},
-    {pos:"Submission Escape Priorities",ph:"e.g. Armbar — stack and pull; Triangle — posture + stack..."},
-  ]},
-  {category:"🧠 Mental & Tactical",positions:[
-    {pos:"Points Strategy",ph:"e.g. Pull guard, hunt sweeps, avoid giving guard pass points..."},
-    {pos:"If Winning on Points",ph:"e.g. Maintain top pressure, avoid risky submission attempts..."},
-    {pos:"If Losing on Points",ph:"e.g. Go for the submission, pull guard for attacks..."},
-    {pos:"Opponent Strength to Neutralise",ph:"e.g. If they're a wrestler — pull guard early..."},
-    {pos:"My Biggest Strength to Exploit",ph:"e.g. My guard is strong — get to the floor ASAP..."},
-    {pos:"Pre-Match Mental Routine",ph:"e.g. Deep breathing, visualise first move, stay loose..."},
-  ]},
+const CORE_POSITIONS = [
+  {id:"standing",   label:"Standing / Grips",   icon:"🤼", color:"#6366f1"},
+  {id:"guard",      label:"Guard (Bottom)",      icon:"🛡️", color:"#3d7a96"},
+  {id:"halfguard",  label:"Half Guard",          icon:"⚡", color:"#7c3aed"},
+  {id:"passing",    label:"Guard Passing (Top)", icon:"⚔️", color:"#0891b2"},
+  {id:"sidecontrol",label:"Side Control (Top)",  icon:"🔒", color:"#b45309"},
+  {id:"mount",      label:"Mount (Top)",         icon:"👑", color:"#e07b39"},
+  {id:"backcontrol",label:"Back Control",        icon:"🎯", color:"#3a7d5e"},
+  {id:"turtle",     label:"Turtle",              icon:"🐢", color:"#64748b"},
+  {id:"leglocks",   label:"Leg Locks",           icon:"🦵", color:"#dc2626"},
+];
+const MENTAL_FIELDS = [
+  {key:"points",   label:"Points Strategy",       ph:"e.g. Pull guard early, hunt sweeps, avoid giving guard pass..."},
+  {key:"winning",  label:"If Winning on Points",  ph:"e.g. Maintain top pressure, avoid risky submissions..."},
+  {key:"losing",   label:"If Losing on Points",   ph:"e.g. Go for the submission, pull guard for attacks..."},
+  {key:"strength", label:"My Biggest Strength",   ph:"e.g. My guard is strong — get to the floor ASAP..."},
+  {key:"routine",  label:"Pre-Match Routine",     ph:"e.g. Deep breathing, visualise first move, stay loose..."},
 ];
 
 const IBJJF_ILLEGAL_MOVES = [
@@ -1471,25 +1435,46 @@ function CalendarScreen({user}){
 // ── COMPETITION ───────────────────────────────────────────────────────────────
 function CompScreen({user}){
   const [tab,setTab]=useState("gameplan");
-  const [gameplan,setGameplan]=useState({});
+  // Flow data: {posId: {attack:{p1,p1leads,p2,p2leads,p3,p3leads}, defence:{p1,p1leads,p2,p2leads,p3,p3leads}}, mental:{...}}
+  const [flowData,setFlowData]=useState({});
+  const [customPositions,setCustomPositions]=useState([]);
   const [gpLoading,setGpLoading]=useState(true);
+  const [openPos,setOpenPos]=useState("standing");
+  const [openSide,setOpenSide]=useState("attack"); // "attack"|"defence" per position
+  const [flowView,setFlowView]=useState("build"); // "build"|"flow"
+  const [flowChainType,setFlowChainType]=useState("attack"); // "attack"|"defence"
+  const [addingCustomPos,setAddingCustomPos]=useState(false);
+  const [customPosName,setCustomPosName]=useState("");
+  const [customPosSides,setCustomPosSides]=useState({attack:true,defence:true});
   const [myComps,setMyComps]=useState([]);
   const [compsLoading,setCompsLoading]=useState(true);
   const [addComp,setAddComp]=useState(false);
   const [compForm,setCompForm]=useState({name:"",date:"",weight:"",gi:"Gi",goal:"",notes:""});
-  const [openCat,setOpenCat]=useState(GAMEPLAN_SECTIONS[0].category);
   const [eventsLoading,setEventsLoading]=useState(false);
   const [aiEvents,setAiEvents]=useState([]);
   const [eventsError,setEventsError]=useState("");
   const [ibjjfBelt,setIbjjfBelt]=useState("White / Blue");
   const [ibjjfSearch,setIbjjfSearch]=useState("");
-  const [savingEvent,setSavingEvent]=useState(null); // event index being saved
+  const [savingEvent,setSavingEvent]=useState(null);
   const [confirmDelComp,setConfirmDelComp]=useState(null);
   const saveTimer=useRef({});
 
+  const allPositions=[...CORE_POSITIONS,...customPositions];
+
   useEffect(()=>{
     supabase.from("game_plan").select("*").eq("user_id",user.id).then(({data})=>{
-      if(data){const g={};data.forEach(r=>g[r.position_key]=r.value);setGameplan(g);}
+      if(data){
+        const g={};
+        data.forEach(r=>{
+          if(r.position_key==="__custom_positions__"){
+            try{setCustomPositions(JSON.parse(r.value)||[]);}catch(e){}
+          } else {
+            try{g[r.position_key]=JSON.parse(r.value);}
+            catch(e){g[r.position_key]={};}
+          }
+        });
+        setFlowData(g);
+      }
       setGpLoading(false);
     });
     supabase.from("competitions").select("*").eq("user_id",user.id).order("date",{ascending:true}).then(({data})=>{
@@ -1498,13 +1483,56 @@ function CompScreen({user}){
     return()=>{ Object.values(saveTimer.current).forEach(clearTimeout); };
   },[user.id]);
 
-  const saveGp=(pos,val)=>{
-    setGameplan(g=>({...g,[pos]:val}));
-    clearTimeout(saveTimer.current[pos]);
-    saveTimer.current[pos]=setTimeout(async()=>{
-      await supabase.from("game_plan").upsert({user_id:user.id,position_key:pos,value:val,updated_at:new Date().toISOString()},{onConflict:"user_id,position_key"});
-    },800);
+  const saveFlowField=(posId,side,field,val)=>{
+    setFlowData(prev=>{
+      const updated={...prev,[posId]:{...prev[posId],[side]:{...(prev[posId]?.[side]||{}),[field]:val}}};
+      clearTimeout(saveTimer.current[`${posId}_${side}`]);
+      saveTimer.current[`${posId}_${side}`]=setTimeout(async()=>{
+        await supabase.from("game_plan").upsert({user_id:user.id,position_key:posId,value:JSON.stringify(updated[posId]),updated_at:new Date().toISOString()},{onConflict:"user_id,position_key"});
+      },800);
+      return updated;
+    });
   };
+
+  const saveCustomPositions=(positions)=>{
+    setCustomPositions(positions);
+    supabase.from("game_plan").upsert({user_id:user.id,position_key:"__custom_positions__",value:JSON.stringify(positions),updated_at:new Date().toISOString()},{onConflict:"user_id,position_key"});
+  };
+
+  const addCustomPosition=()=>{
+    const n=customPosName.trim();
+    if(!n) return;
+    const newPos={id:`custom_${Date.now()}`,label:n,icon:"📌",color:"#64748b",sides:{attack:customPosSides.attack,defence:customPosSides.defence}};
+    saveCustomPositions([...customPositions,newPos]);
+    setCustomPosName("");setAddingCustomPos(false);setCustomPosSides({attack:true,defence:true});
+  };
+
+  // Build chain by following primary leadsTo for a given side
+  const buildChain=(side)=>{
+    const chain=[];
+    const visited=new Set();
+    const startPos=allPositions.find(p=>flowData[p.id]?.[side]?.p1?.trim());
+    if(!startPos) return [];
+    // prefer standing
+    let current=(flowData["standing"]?.[side]?.p1?.trim())?"standing":startPos.id;
+    while(current&&!visited.has(current)){
+      const pos=allPositions.find(p=>p.id===current);
+      const d=flowData[current]?.[side]||{};
+      if(!pos||!d.p1?.trim()) break;
+      chain.push({pos,d});
+      visited.add(current);
+      const nextId=d.p1leads?.trim();
+      current=nextId?allPositions.find(p=>p.id===nextId)?.id:null;
+    }
+    return chain;
+  };
+
+  // Completion: count positions that have at least p1 filled on at least one side
+  const filledCount=allPositions.filter(p=>{
+    const d=flowData[p.id]||{};
+    return d.attack?.p1?.trim()||d.defence?.p1?.trim()||d.mental;
+  }).length;
+  const pct=allPositions.length>0?Math.round((filledCount/allPositions.length)*100):0;
 
   const saveComp=async()=>{
     const{data,error}=await supabase.from("competitions").insert({user_id:user.id,...compForm}).select().single();
@@ -1512,67 +1540,78 @@ function CompScreen({user}){
     if(data)setMyComps(c=>[...c,data].sort((a,b)=>new Date(a.date)-new Date(b.date)));
     setAddComp(false);setCompForm({name:"",date:"",weight:"",gi:"Gi",goal:"",notes:""});
   };
-
   const delComp=async(id)=>{
-    if(confirmDelComp!==id){
-      setConfirmDelComp(id);
-      setTimeout(()=>setConfirmDelComp(null),3000);
-      return;
-    }
+    if(confirmDelComp!==id){setConfirmDelComp(id);setTimeout(()=>setConfirmDelComp(null),3000);return;}
     const{error}=await supabase.from("competitions").delete().eq("id",id);
     if(error){console.error("Failed to delete competition:",error.message);return;}
-    setMyComps(c=>c.filter(x=>x.id!==id));
-    setConfirmDelComp(null);
+    setMyComps(c=>c.filter(x=>x.id!==id));setConfirmDelComp(null);
   };
-
-  // Add AI-found event to My Events — duplicate-safe
   const addAiEventToMyEvents=async(ev,idx)=>{
     setSavingEvent(idx);
     const row={user_id:user.id,name:ev.name,date:ev.date||"",weight:"",gi:"Gi",goal:"",notes:ev.location?`${ev.location}${ev.organiser?" · "+ev.organiser:""}`:"",};
     const{data,error}=await supabase.from("competitions").insert(row).select().single();
-    if(error){console.error("Failed to save AI event:",error.message);setSavingEvent(null);return;}
+    if(error){setSavingEvent(null);return;}
     if(data)setMyComps(c=>[...c,data].sort((a,b)=>new Date(a.date)-new Date(b.date)));
     setSavingEvent(null);
   };
-
   const fetchAiEvents=async()=>{
     setEventsLoading(true);setEventsError("");setAiEvents([]);
     const futureYear=new Date().getFullYear();
     try{
       const{data:{session}}=await supabase.auth.getSession();
-      const res=await fetch("/api/claude",{
-        method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${session?.access_token}`},
-        body:JSON.stringify({
-          model:"claude-sonnet-4-20250514",max_tokens:1200,
-          tools:[{type:"web_search_20250305",name:"web_search"}],
-          messages:[{role:"user",content:`Search for UPCOMING (future dates only, after today ${todayStr()}) BJJ and Brazilian Jiu-Jitsu competitions, tournaments and open mats in Auckland and New Zealand in ${futureYear} and ${futureYear+1}. Only include events that have NOT yet happened. Return ONLY a valid JSON array with no markdown, no explanation. Each object: { "name": string, "date": "YYYY-MM-DD or null", "location": string, "organiser": string, "url": string or null }. Maximum 8 events. If no future events found, return [].`}],
-        }),
-      });
+      const res=await fetch("/api/claude",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${session?.access_token}`},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1200,tools:[{type:"web_search_20250305",name:"web_search"}],messages:[{role:"user",content:`Search for UPCOMING (future dates only, after today ${todayStr()}) BJJ and Brazilian Jiu-Jitsu competitions, tournaments and open mats in Auckland and New Zealand in ${futureYear} and ${futureYear+1}. Only include events that have NOT yet happened. Return ONLY a valid JSON array with no markdown, no explanation. Each object: { "name": string, "date": "YYYY-MM-DD or null", "location": string, "organiser": string, "url": string or null }. Maximum 8 events. If no future events found, return [].`}]})});
       if(!res.ok){throw new Error(`API error: ${res.status}`);}
       const data=await res.json();
       const text=(data.content||[]).map(b=>b.type==="text"?b.text:"").join("");
       const clean=text.replace(/```json|```/g,"").trim();
       const start=clean.indexOf("["),end=clean.lastIndexOf("]");
       if(start!==-1&&end!==-1){
-        let parsed;
-        try{parsed=JSON.parse(clean.slice(start,end+1));}
-        catch(parseErr){setEventsError("Couldn't parse event data. Try again.");setEventsLoading(false);return;}
-        if(!Array.isArray(parsed)){setEventsError("Unexpected response format. Try again.");setEventsLoading(false);return;}
+        let parsed;try{parsed=JSON.parse(clean.slice(start,end+1));}catch(parseErr){setEventsError("Couldn't parse event data. Try again.");setEventsLoading(false);return;}
+        if(!Array.isArray(parsed)){setEventsError("Unexpected response format.");setEventsLoading(false);return;}
         const future=parsed.filter(ev=>ev&&typeof ev==="object"&&(!ev.date||!isDatePast(ev.date)));
         setAiEvents(future);
-        if(future.length===0)setEventsError("No upcoming events found right now. Check the links below or try again later.");
-      }else{
-        setEventsError("No structured events found. Use the links below to find events.");
-      }
+        if(future.length===0)setEventsError("No upcoming events found right now. Check the links below.");
+      }else{setEventsError("No structured events found. Use the links below to find events.");}
     }catch(e){setEventsError("Search unavailable. Use the links below to find events.");}
     setEventsLoading(false);
   };
 
-  const filledCount=Object.values(gameplan).filter(v=>v&&v.trim()).length;
-  const totalFields=GAMEPLAN_SECTIONS.reduce((a,s)=>a+s.positions.length,0);
-  const pct=Math.round((filledCount/totalFields)*100);
   const levelKey=BELT_LEVEL_MAP[ibjjfBelt];
   const filteredMoves=IBJJF_ILLEGAL_MOVES.filter(m=>m.levels.includes(levelKey)&&(!ibjjfSearch||m.move.toLowerCase().includes(ibjjfSearch.toLowerCase())));
+
+  // Shared flow field renderer for attack/defence sides
+  const FlowSection=({posId,side,color,d})=>{
+    const sideData=d||{};
+    const fields=[
+      {pKey:"p1",lKey:"p1leads",label:"① Primary",ph:"Your main attack / technique from this position..."},
+      {pKey:"p2",lKey:"p2leads",label:"② Backup",ph:"If primary is shut down or defended..."},
+      {pKey:"p3",lKey:"p3leads",label:"③ If that fails",ph:"Last resort, reset or survival plan..."},
+    ];
+    return(
+      <div>
+        {fields.map(({pKey,lKey,label},i)=>(
+          <div key={pKey} style={{marginBottom:10}}>
+            <div style={{fontSize:11,fontWeight:700,color:i===0?color:T.muted,textTransform:"uppercase",letterSpacing:0.8,marginBottom:4}}>{label}</div>
+            <textarea value={sideData[pKey]||""} onChange={e=>saveFlowField(posId,side,pKey,e.target.value)}
+              rows={2} maxLength={300} placeholder={fields[i].ph}
+              style={{width:"100%",background:T.surface,border:`1.5px solid ${sideData[pKey]?.trim()?color+"55":T.border}`,borderRadius:10,padding:"9px 12px",color:T.text,fontSize:13,outline:"none",resize:"none",lineHeight:1.5,marginBottom:4}}/>
+            {/* Optional Leads To per option */}
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:10,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,flexShrink:0}}>→ leads to</span>
+              <select value={sideData[lKey]||""} onChange={e=>saveFlowField(posId,side,lKey,e.target.value)}
+                style={{flex:1,background:sideData[lKey]?T.tealLight:T.surface,border:`1px solid ${sideData[lKey]?color+"55":T.border}`,borderRadius:8,padding:"5px 8px",color:sideData[lKey]?T.text:T.muted,fontSize:11,outline:"none",cursor:"pointer"}}>
+                <option value="">— optional —</option>
+                {allPositions.filter(p=>p.id!==posId).map(p=>(
+                  <option key={p.id} value={p.id}>{p.icon} {p.label}</option>
+                ))}
+              </select>
+            </div>
+            {i<2&&<div style={{textAlign:"center",fontSize:11,color:T.subtle,margin:"4px 0"}}>↓ if blocked</div>}
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return(
     <div style={{padding:"0 16px",animation:"fadeUp 0.4s ease"}}>
@@ -1583,42 +1622,238 @@ function CompScreen({user}){
         ))}
       </div>
 
-      {/* ── GAME PLAN ── */}
+      {/* ── GAME PLAN / FLOW BUILDER ── */}
       {tab==="gameplan"&&(
         <div>
           {gpLoading?<div style={{display:"flex",justifyContent:"center",padding:"40px 0"}}><Spinner size={32}/></div>:(
             <>
+              {/* Completion bar */}
               <Card style={{background:T.tealLight,border:`1.5px solid ${T.teal}33`,marginBottom:14}}>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><div style={{fontSize:13,fontWeight:700,color:T.teal}}>Blueprint Completion</div><div style={{fontFamily:"'JetBrains Mono'",fontWeight:700,color:T.teal}}>{pct}%</div></div>
-                <div style={{background:T.surface,borderRadius:8,height:8,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:T.teal,borderRadius:8,transition:"width 0.5s ease"}}/></div>
-                <div style={{fontSize:11,color:T.muted,marginTop:6}}>{filledCount} of {totalFields} positions filled · Auto-saves as you type</div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <div style={{fontSize:13,fontWeight:700,color:T.teal}}>Game Plan Completion</div>
+                  <div style={{fontFamily:"'JetBrains Mono'",fontWeight:700,color:T.teal}}>{pct}%</div>
+                </div>
+                <div style={{background:T.surface,borderRadius:8,height:8,overflow:"hidden",marginBottom:6}}>
+                  <div style={{height:"100%",width:`${pct}%`,background:T.teal,borderRadius:8,transition:"width 0.5s ease"}}/>
+                </div>
+                <div style={{fontSize:11,color:T.muted}}>{filledCount} of {allPositions.length} positions started · Auto-saves as you type</div>
               </Card>
-              {GAMEPLAN_SECTIONS.map(section=>{
-                const filled=section.positions.filter(p=>gameplan[p.pos]?.trim()).length;
-                const isOpen=openCat===section.category;
-                return(
-                  <div key={section.category} style={{marginBottom:8}}>
-                    <button onClick={()=>setOpenCat(isOpen?null:section.category)} style={{width:"100%",background:isOpen?T.teal:T.surface,border:`1.5px solid ${isOpen?T.teal:T.border}`,borderRadius:isOpen?"12px 12px 0 0":12,padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",boxShadow:T.shadow}}>
-                      <div><div style={{fontWeight:700,fontSize:14,color:isOpen?"#fff":T.text}}>{section.category}</div><div style={{fontSize:11,color:isOpen?"rgba(255,255,255,0.7)":T.muted,marginTop:1}}>{filled}/{section.positions.length} filled</div></div>
-                      <span style={{color:isOpen?"#fff":T.muted,fontSize:13}}>{isOpen?"▲":"▼"}</span>
-                    </button>
-                    {isOpen&&(
-                      <div style={{background:T.cardAlt,border:`1.5px solid ${T.teal}22`,borderTop:"none",borderRadius:"0 0 12px 12px",padding:"14px 12px 8px",animation:"fadeUp 0.2s ease"}}>
-                        {section.positions.map(({pos,ph})=>(
-                          <div key={pos} style={{marginBottom:13}}>
-                            <div style={{fontSize:11,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>{pos}</div>
-                            <textarea value={gameplan[pos]||""} onChange={e=>saveGp(pos,e.target.value)} rows={2} maxLength={500} placeholder={ph} style={{width:"100%",background:T.surface,border:`1.5px solid ${gameplan[pos]?.trim()?T.teal+"55":T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none",lineHeight:1.5}}/>
+
+              {/* Build / Flow toggle */}
+              <div style={{display:"flex",background:T.surface,borderRadius:10,padding:3,marginBottom:14,border:`1px solid ${T.border}`}}>
+                {[["build","🔧 Build"],["flow","⚡ A-Game Flow"]].map(([v,l])=>(
+                  <button key={v} onClick={()=>setFlowView(v)} style={{flex:1,padding:"8px 0",background:flowView===v?"#1e2d40":"none",color:flowView===v?"#fff":T.muted,border:"none",borderRadius:8,fontWeight:700,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>{l}</button>
+                ))}
+              </div>
+
+              {/* ── BUILD VIEW ── */}
+              {flowView==="build"&&(
+                <>
+                  {allPositions.map(pos=>{
+                    const d=flowData[pos.id]||{};
+                    const isOpen=openPos===pos.id;
+                    const isCustom=customPositions.some(p=>p.id===pos.id);
+                    const hasSides=isCustom?{attack:pos.sides?.attack!==false,defence:pos.sides?.defence!==false}:{attack:true,defence:true};
+                    const atkFilled=[d.attack?.p1,d.attack?.p2,d.attack?.p3].filter(v=>v?.trim()).length;
+                    const defFilled=[d.defence?.p1,d.defence?.p2,d.defence?.p3].filter(v=>v?.trim()).length;
+                    const totalFilled=atkFilled+defFilled;
+                    return(
+                      <div key={pos.id} style={{marginBottom:8}}>
+                        {/* Position header button */}
+                        <button onClick={()=>setOpenPos(isOpen?null:pos.id)}
+                          style={{width:"100%",background:isOpen?pos.color:T.surface,border:`1.5px solid ${isOpen?pos.color:T.border}`,borderRadius:isOpen?"12px 12px 0 0":12,padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",boxShadow:T.shadow,transition:"all 0.2s"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:10}}>
+                            <span style={{fontSize:20}}>{pos.icon}</span>
+                            <div>
+                              <div style={{fontWeight:700,fontSize:14,color:isOpen?"#fff":T.text}}>{pos.label}</div>
+                              <div style={{fontSize:11,color:isOpen?"rgba(255,255,255,0.65)":T.muted,marginTop:1}}>
+                                {totalFilled===0?"Not started":`${atkFilled} attack · ${defFilled} defence options filled`}
+                              </div>
+                            </div>
                           </div>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            {/* Dot indicators: attack (orange) / defence (teal) */}
+                            <div style={{display:"flex",gap:3}}>
+                              {[0,1,2].map(i=><div key={`a${i}`} style={{width:6,height:6,borderRadius:"50%",background:d.attack?.[`p${i+1}`]?.trim()?(isOpen?"rgba(255,255,255,0.9)":T.orange):(isOpen?"rgba(255,255,255,0.25)":T.border)}}/>)}
+                            </div>
+                            <div style={{width:1,height:14,background:isOpen?"rgba(255,255,255,0.3)":T.border}}/>
+                            <div style={{display:"flex",gap:3}}>
+                              {[0,1,2].map(i=><div key={`d${i}`} style={{width:6,height:6,borderRadius:"50%",background:d.defence?.[`p${i+1}`]?.trim()?(isOpen?"rgba(255,255,255,0.9)":T.teal):(isOpen?"rgba(255,255,255,0.25)":T.border)}}/>)}
+                            </div>
+                            {isCustom&&(
+                              <button onClick={e=>{e.stopPropagation();saveCustomPositions(customPositions.filter(p=>p.id!==pos.id));}}
+                                style={{background:"rgba(255,255,255,0.15)",border:"none",borderRadius:6,width:22,height:22,cursor:"pointer",fontSize:11,color:isOpen?"#fff":T.muted,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+                            )}
+                            <span style={{color:isOpen?"#fff":T.muted,fontSize:13}}>{isOpen?"▲":"▼"}</span>
+                          </div>
+                        </button>
+
+                        {/* Expanded panel */}
+                        {isOpen&&(
+                          <div style={{background:T.cardAlt,border:`1.5px solid ${pos.color}33`,borderTop:"none",borderRadius:"0 0 12px 12px",padding:"0 0 12px",animation:"fadeUp 0.2s ease"}}>
+                            {/* Attack / Defence sub-tabs */}
+                            <div style={{display:"flex",borderBottom:`1px solid ${T.border}`,marginBottom:14}}>
+                              {[
+                                ...(hasSides.attack?[["attack","⚔️ Attack",T.orange]]:
+                                []),
+                                ...(hasSides.defence?[["defence","🛡️ Defence",T.teal]]:[]),
+                                ...(!pos.id.startsWith("custom_")&&pos.id==="mental"?[["mental","🧠 Mental",T.muted]]:[]),
+                              ].map(([s,l,c])=>(
+                                <button key={s} onClick={()=>setOpenSide(s)}
+                                  style={{flex:1,padding:"10px 0",background:"none",border:"none",borderBottom:`2.5px solid ${openSide===s?c:"transparent"}`,color:openSide===s?c:T.muted,fontWeight:700,fontSize:13,cursor:"pointer",transition:"all 0.15s"}}>{l}</button>
+                              ))}
+                              {["attack","defence"].includes(openSide)&&(
+                                <button key="mental_tab" onClick={()=>setOpenSide("mental")}
+                                  style={{flex:1,padding:"10px 0",background:"none",border:"none",borderBottom:`2.5px solid ${openSide==="mental"?"#8b5cf6":"transparent"}`,color:openSide==="mental"?"#8b5cf6":T.muted,fontWeight:700,fontSize:13,cursor:"pointer",transition:"all 0.15s"}}>🧠 Notes</button>
+                              )}
+                            </div>
+                            <div style={{padding:"0 14px"}}>
+                              {openSide==="attack"&&hasSides.attack&&<FlowSection posId={pos.id} side="attack" color={T.orange} d={d.attack}/>}
+                              {openSide==="defence"&&hasSides.defence&&<FlowSection posId={pos.id} side="defence" color={T.teal} d={d.defence}/>}
+                              {openSide==="mental"&&(
+                                <div>
+                                  {MENTAL_FIELDS.map(f=>(
+                                    <div key={f.key} style={{marginBottom:12}}>
+                                      <div style={{fontSize:11,color:"#8b5cf6",fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:4}}>{f.label}</div>
+                                      <textarea value={d.mental?.[f.key]||""} onChange={e=>saveFlowField(pos.id,"mental",f.key,e.target.value)}
+                                        rows={2} maxLength={300} placeholder={f.ph}
+                                        style={{width:"100%",background:T.surface,border:`1.5px solid ${d.mental?.[f.key]?.trim()?"#8b5cf655":T.border}`,borderRadius:10,padding:"9px 12px",color:T.text,fontSize:13,outline:"none",resize:"none",lineHeight:1.5}}/>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Add custom position */}
+                  {addingCustomPos?(
+                    <Card style={{border:`1.5px solid ${T.teal}`,background:T.tealLight,marginTop:4}}>
+                      <div style={{fontSize:13,fontWeight:700,color:T.teal,marginBottom:8}}>New Position Name</div>
+                      <input value={customPosName} onChange={e=>setCustomPosName(e.target.value)} placeholder="e.g. 50/50, Rubber Guard, Crucifix..." autoFocus
+                        onKeyDown={e=>{if(e.key==="Enter")addCustomPosition();if(e.key==="Escape")setAddingCustomPos(false);}}
+                        style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:14,outline:"none",marginBottom:10}}/>
+                      <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8}}>Include sections</div>
+                      <div style={{display:"flex",gap:8,marginBottom:14}}>
+                        {[["attack","⚔️ Attack"],["defence","🛡️ Defence"]].map(([s,l])=>(
+                          <button key={s} onClick={()=>setCustomPosSides(p=>({...p,[s]:!p[s]}))}
+                            style={{flex:1,padding:"8px",background:customPosSides[s]?T.teal:T.surface,color:customPosSides[s]?"#fff":T.muted,border:`1.5px solid ${customPosSides[s]?T.teal:T.border}`,borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer"}}>{l}</button>
                         ))}
                       </div>
-                    )}
+                      <div style={{display:"flex",gap:8}}>
+                        <Btn onClick={addCustomPosition} disabled={!customPosName.trim()} style={{flex:1,padding:"10px"}}>Add Position</Btn>
+                        <Btn onClick={()=>{setAddingCustomPos(false);setCustomPosName("");}} variant="ghost" style={{flex:1,padding:"10px"}}>Cancel</Btn>
+                      </div>
+                    </Card>
+                  ):(
+                    <button onClick={()=>setAddingCustomPos(true)} style={{width:"100%",background:"none",border:`1.5px dashed ${T.border}`,borderRadius:12,padding:"14px",cursor:"pointer",color:T.muted,fontSize:13,fontWeight:700,marginTop:4,transition:"all 0.15s"}}
+                      onMouseEnter={e=>{e.currentTarget.style.borderColor=T.teal;e.currentTarget.style.color=T.teal;}}
+                      onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.muted;}}>
+                      + Add Custom Position
+                    </button>
+                  )}
+                </>
+              )}
+
+              {/* ── FLOW VIEW ── */}
+              {flowView==="flow"&&(
+                <>
+                  {/* Attack / Defence chain toggle */}
+                  <div style={{display:"flex",background:T.surface,borderRadius:10,padding:3,marginBottom:14,border:`1px solid ${T.border}`}}>
+                    {[["attack","⚔️ Offensive Flow",T.orange],["defence","🛡️ Defensive Flow",T.teal]].map(([v,l,c])=>(
+                      <button key={v} onClick={()=>setFlowChainType(v)} style={{flex:1,padding:"8px 0",background:flowChainType===v?c:"none",color:flowChainType===v?"#fff":T.muted,border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer",transition:"all 0.2s"}}>{l}</button>
+                    ))}
                   </div>
-                );
-              })}
+                  {(()=>{
+                    const chain=buildChain(flowChainType);
+                    const c=flowChainType==="attack"?T.orange:T.teal;
+                    if(chain.length===0) return(
+                      <div style={{textAlign:"center",color:T.muted,padding:"40px 0"}}>
+                        <div style={{fontSize:48,marginBottom:12}}>⚡</div>
+                        <div style={{fontFamily:"'DM Serif Display'",fontSize:20,color:T.text,marginBottom:6}}>No flow yet</div>
+                        <div style={{fontSize:13,lineHeight:1.6,padding:"0 20px"}}>Fill in your positions in the Build tab and connect them using the "→ leads to" dropdowns to generate your flow.</div>
+                      </div>
+                    );
+                    return(
+                      <>
+                        <Card style={{background:"#0d1b2a",border:"none",marginBottom:14,padding:"12px 16px"}}>
+                          <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:2}}>{flowChainType==="attack"?"⚔️ Offensive":"🛡️ Defensive"} A-Game Flow</div>
+                          <div style={{fontSize:12,color:"rgba(255,255,255,0.6)"}}>{chain.length} positions connected</div>
+                        </Card>
+                        {chain.map(({pos,d},i)=>(
+                          <div key={pos.id}>
+                            <div style={{background:T.surface,border:`2px solid ${pos.color}`,borderRadius:14,padding:"14px 16px",boxShadow:`0 2px 12px ${pos.color}22`}}>
+                              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+                                <div style={{width:34,height:34,borderRadius:10,background:pos.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{pos.icon}</div>
+                                <div style={{fontFamily:"'DM Serif Display'",fontSize:18,color:T.text}}>{pos.label}</div>
+                              </div>
+                              {[
+                                {pKey:"p1",lKey:"p1leads",label:"①"},
+                                {pKey:"p2",lKey:"p2leads",label:"②"},
+                                {pKey:"p3",lKey:"p3leads",label:"③"},
+                              ].filter(f=>d[f.pKey]?.trim()).map((f,j,arr)=>{
+                                const nextPos=d[f.lKey]?allPositions.find(p=>p.id===d[f.lKey]):null;
+                                return(
+                                  <div key={f.pKey}>
+                                    <div style={{display:"flex",gap:10,alignItems:"flex-start",background:j===0?`${c}15`:T.cardAlt,borderRadius:10,padding:"10px 12px",marginBottom:4}}>
+                                      <span style={{fontFamily:"'JetBrains Mono'",fontWeight:700,fontSize:13,color:j===0?c:T.muted,flexShrink:0,marginTop:1}}>{f.label}</span>
+                                      <div style={{flex:1}}>
+                                        <div style={{fontSize:13,color:T.text,lineHeight:1.5}}>{d[f.pKey]}</div>
+                                        {nextPos&&<div style={{fontSize:11,color:c,fontWeight:700,marginTop:4}}>→ {nextPos.icon} {nextPos.label}</div>}
+                                      </div>
+                                    </div>
+                                    {j<arr.length-1&&<div style={{fontSize:11,color:T.subtle,marginLeft:12,marginBottom:4}}>↓ if blocked</div>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            {i<chain.length-1&&(
+                              <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"4px 0"}}>
+                                <div style={{width:2,height:10,background:`${chain[i+1].pos.color}66`}}/>
+                                <div style={{fontSize:16,color:chain[i+1].pos.color,lineHeight:1}}>▼</div>
+                                <div style={{fontSize:10,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.6,marginTop:1}}>leads to</div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        {/* Unconnected positions */}
+                        {(()=>{
+                          const inChain=new Set(chain.map(c=>c.pos.id));
+                          const unconnected=allPositions.filter(p=>!inChain.has(p.id)&&flowData[p.id]?.[flowChainType]?.p1?.trim());
+                          if(unconnected.length===0) return null;
+                          return(
+                            <div style={{marginTop:14}}>
+                              <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8}}>Other Positions (not in main flow)</div>
+                              {unconnected.map(pos=>{
+                                const d=flowData[pos.id]?.[flowChainType]||{};
+                                return(
+                                  <div key={pos.id} style={{background:T.surface,border:`1.5px solid ${pos.color}44`,borderRadius:12,padding:"12px 14px",marginBottom:8}}>
+                                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}><span style={{fontSize:16}}>{pos.icon}</span><div style={{fontWeight:700,fontSize:14,color:T.text}}>{pos.label}</div></div>
+                                    {["p1","p2","p3"].filter(k=>d[k]?.trim()).map((k,j)=>(
+                                      <div key={k} style={{display:"flex",gap:8,alignItems:"flex-start",marginBottom:4}}>
+                                        <span style={{fontFamily:"'JetBrains Mono'",fontSize:12,color:pos.color,flexShrink:0}}>{"①②③"[j]}</span>
+                                        <span style={{fontSize:12,color:T.text,lineHeight:1.5}}>{d[k]}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
+                      </>
+                    );
+                  })()}
+                </>
+              )}
             </>
           )}
         </div>
       )}
+
 
       {/* ── EVENTS ── */}
       {tab==="comps"&&(
