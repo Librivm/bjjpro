@@ -14,7 +14,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const GLOBAL_CSS = `
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
-body{background:#f5f0eb;color:#1e2d40;font-family:'Plus Jakarta Sans',sans-serif;overscroll-behavior:none;}
+body{background:var(--openmat-bg,#f5f0eb);color:var(--openmat-text,#1e2d40);font-family:'Plus Jakarta Sans',sans-serif;overscroll-behavior:none;}
 ::-webkit-scrollbar{width:4px;}
 ::-webkit-scrollbar-track{background:#ede8e3;}
 ::-webkit-scrollbar-thumb{background:#3d7a96;border-radius:2px;}
@@ -30,13 +30,22 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:0.5;}
 @media(orientation:portrait){.fullscreen-timer .fs-time{font-size:28vw;}.fullscreen-timer .fs-label{font-size:5vw;}}
 `;
 
-const T = {
+const LIGHT = {
   bg:"#f5f0eb", surface:"#ffffff", card:"#ffffff", cardAlt:"#faf7f4",
   border:"#e4ddd6", teal:"#3d7a96", tealLight:"#eaf3f7",
   orange:"#e07b39", orangeLight:"#fdf1e8", green:"#3a7d5e", greenLight:"#eaf5ef",
   text:"#1e2d40", muted:"#7a8a96", subtle:"#d4cdc6",
   shadow:"0 2px 12px rgba(30,45,64,0.08)",
 };
+const DARK = {
+  bg:"#0d1b2a", surface:"#1b2838", card:"#1b2838", cardAlt:"#162232",
+  border:"#2a3a4a", teal:"#4da3c4", tealLight:"#1a2e3d",
+  orange:"#e8944e", orangeLight:"#2a2218", green:"#4daa7a", greenLight:"#1a2e24",
+  text:"#e8e3dc", muted:"#8a9aaa", subtle:"#3a4a5a",
+  shadow:"0 2px 12px rgba(0,0,0,0.3)",
+};
+let T = {...LIGHT};
+const setTheme=(dark)=>{Object.assign(T, dark ? DARK : LIGHT);};
 
 // ── Comprehensive Technique Library ──────────────────────────────────────────
 const TECHNIQUES = {
@@ -435,16 +444,19 @@ function TimerScreen(){
   const [fullscreen,setFullscreen]=useState(false);
   const [volume,setVolume]=useState(0.7);
   const interval=useRef(null);
+  const wakeLock=useRef(null);
   const{ringRoundEnd,ringRoundStart,unlockAudio}=useAudio(volume);
-  const reset=()=>{clearInterval(interval.current);setRunning(false);setCurrentRound(1);setIsRest(false);setTimeLeft(roundLen);setDone(false);setShowSetup(true);setFullscreen(false);};
-  const start=()=>{unlockAudio();setShowSetup(false);setTimeLeft(roundLen);setRunning(true);};
+  const requestWakeLock=async()=>{try{if("wakeLock" in navigator){wakeLock.current=await navigator.wakeLock.request("screen");}}catch(e){}};
+  const releaseWakeLock=()=>{try{if(wakeLock.current){wakeLock.current.release();wakeLock.current=null;}}catch(e){}};
+  const reset=()=>{clearInterval(interval.current);releaseWakeLock();setRunning(false);setCurrentRound(1);setIsRest(false);setTimeLeft(roundLen);setDone(false);setShowSetup(true);setFullscreen(false);};
+  const start=()=>{unlockAudio();requestWakeLock();setShowSetup(false);setTimeLeft(roundLen);setRunning(true);};
   useEffect(()=>{
     if(!running){clearInterval(interval.current);return;}
     interval.current=setInterval(()=>{
       setTimeLeft(t=>{
         if(t<=1){
           setIsRest(r=>{
-            if(!r){ringRoundEnd();setCurrentRound(cr=>{if(cr>=rounds){setRunning(false);setDone(true);clearInterval(interval.current);return cr;}return cr+1;});setTimeout(()=>setTimeLeft(restLen),0);return true;}
+            if(!r){ringRoundEnd();setCurrentRound(cr=>{if(cr>=rounds){setRunning(false);setDone(true);releaseWakeLock();clearInterval(interval.current);return cr;}return cr+1;});setTimeout(()=>setTimeLeft(restLen),0);return true;}
             else{setTimeout(()=>{setTimeLeft(roundLen);ringRoundStart();},0);return false;}
           });return 0;
         }return t-1;
@@ -1046,6 +1058,12 @@ function ScheduleScreen({user}){
   const [saving,setSaving]=useState(false);
   const [showExtra,setShowExtra]=useState(false);
   const [form,setForm]=useState({date:todayStr(),duration:60,type:"Open Mat",techniques:"",notes:"",learnings:""});
+  // Search & filter
+  const [searchText,setSearchText]=useState("");
+  const [filterType,setFilterType]=useState("All");
+  // Technique autocomplete
+  const [myTechNames,setMyTechNames]=useState([]);
+  const [showSuggestions,setShowSuggestions]=useState(false);
   // Journal-specific
   const [streak,setStreak]=useState(0);
   const [weeklyGoal,setWeeklyGoal]=useState(3);
@@ -1093,10 +1111,11 @@ function ScheduleScreen({user}){
   };
 
   const fetchData=async()=>{
-    const[{data:j},{data:c},{data:p}]=await Promise.all([
+    const[{data:j},{data:c},{data:p},{data:techs}]=await Promise.all([
       supabase.from("journal_entries").select("*").eq("user_id",user.id).order("date",{ascending:false}).order("created_at",{ascending:false}),
       supabase.from("competitions").select("*").eq("user_id",user.id),
       supabase.from("profiles").select("weekly_goal").eq("id",user.id).single(),
+      supabase.from("custom_techniques").select("title").eq("user_id",user.id),
     ]);
     const goal=(p?.weekly_goal)||3;
     if(j){
@@ -1104,6 +1123,7 @@ function ScheduleScreen({user}){
       setStreak(calcStreak(j,goal));
     }
     if(c)setComps(c);
+    if(techs)setMyTechNames([...new Set(techs.map(t=>t.title))]);
     setWeeklyGoal(goal);
     setGoalInput(goal);
     setLoading(false);
@@ -1247,9 +1267,31 @@ function ScheduleScreen({user}){
             </div>
           </Card>
           <Btn onClick={()=>setAdding(true)} style={{width:"100%",padding:"14px",fontSize:15,marginBottom:14,marginTop:2}}>+ Log Today's Session</Btn>
+          {/* Search & filter */}
+          {!loading&&entries.length>0&&(
+            <div style={{marginBottom:12}}>
+              <input value={searchText} onChange={e=>setSearchText(e.target.value)} placeholder="Search learnings, techniques, notes..."
+                style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 14px",color:T.text,fontSize:13,outline:"none",marginBottom:8}}/>
+              <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:4,scrollbarWidth:"none"}}>
+                {["All","Gi","No-Gi","Open Mat","Drilling","Competition","Private","Workout"].map(ft=>(
+                  <button key={ft} onClick={()=>setFilterType(ft)} style={{background:filterType===ft?T.teal:T.surface,color:filterType===ft?"#fff":T.muted,border:`1.5px solid ${filterType===ft?T.teal:T.border}`,borderRadius:20,padding:"5px 12px",fontSize:11,cursor:"pointer",fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>{ft}</button>
+                ))}
+              </div>
+            </div>
+          )}
           {loading&&<div style={{display:"flex",justifyContent:"center",padding:"40px 0"}}><Spinner size={32}/></div>}
           {!loading&&entries.length===0&&<div style={{textAlign:"center",color:T.muted,padding:"40px 0"}}><div style={{fontSize:40,marginBottom:10}}>📓</div><div style={{fontFamily:"'DM Serif Display'",fontSize:20,color:T.text,marginBottom:4}}>No sessions yet</div><div style={{fontSize:13}}>Start logging your journey on the mats!</div></div>}
-          {entries.map(e=>(
+          {(()=>{
+            const q=searchText.toLowerCase().trim();
+            const filtered=entries.filter(e=>{
+              if(filterType!=="All"&&e.type!==filterType) return false;
+              if(!q) return true;
+              return [e.learnings,e.techniques,e.notes,e.type].filter(Boolean).some(f=>f.toLowerCase().includes(q));
+            });
+            if(!loading&&entries.length>0&&filtered.length===0) return(
+              <div style={{textAlign:"center",color:T.muted,padding:"30px 0"}}><div style={{fontSize:32,marginBottom:8}}>🔍</div><div style={{fontSize:14}}>No sessions match your search</div></div>
+            );
+            return filtered.map(e=>(
             <Card key={e.id} onClick={()=>setViewEntry(e)} style={{cursor:"pointer"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                 <div style={{flex:1}}>
@@ -1276,7 +1318,8 @@ function ScheduleScreen({user}){
                 </div>
               </div>
             </Card>
-          ))}
+          ));
+          })()}
         </>
       )}
 
@@ -1380,7 +1423,28 @@ function ScheduleScreen({user}){
                 </button>
                 {showExtra&&(
                   <>
-                    <div style={{marginBottom:14}}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Techniques Drilled</div><textarea value={form.techniques} onChange={e=>setForm({...form,techniques:e.target.value})} rows={2} placeholder="e.g. Triangle setup, knee slice pass..." style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/></div>
+                    <div style={{marginBottom:14,position:"relative"}}>
+                      <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Techniques Drilled</div>
+                      <textarea value={form.techniques} onChange={e=>{setForm({...form,techniques:e.target.value});setShowSuggestions(true);}} onFocus={()=>setShowSuggestions(true)} onBlur={()=>setTimeout(()=>setShowSuggestions(false),200)} rows={2} placeholder="e.g. Triangle setup, knee slice pass..." style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/>
+                      {showSuggestions&&form.techniques&&(()=>{
+                        const lastPart=(form.techniques.split(",").pop()||"").trim().toLowerCase();
+                        if(!lastPart||lastPart.length<2) return null;
+                        const matches=myTechNames.filter(t=>t.toLowerCase().includes(lastPart)&&!form.techniques.toLowerCase().includes(t.toLowerCase())).slice(0,5);
+                        if(matches.length===0) return null;
+                        return(
+                          <div style={{position:"absolute",left:0,right:0,top:"100%",background:T.surface,border:`1.5px solid ${T.teal}`,borderRadius:10,boxShadow:T.shadow,zIndex:20,maxHeight:160,overflowY:"auto",marginTop:2}}>
+                            {matches.map(m=>(
+                              <button key={m} onMouseDown={e=>{e.preventDefault();const parts=form.techniques.split(",");parts[parts.length-1]=" "+m;setForm({...form,techniques:parts.join(",")+", "});setShowSuggestions(false);}}
+                                style={{width:"100%",textAlign:"left",padding:"8px 12px",background:"none",border:"none",borderBottom:`1px solid ${T.border}`,color:T.text,fontSize:13,cursor:"pointer"}}
+                                onMouseEnter={e=>{e.currentTarget.style.background=T.tealLight;}}
+                                onMouseLeave={e=>{e.currentTarget.style.background="none";}}>
+                                {m}
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
                     <div style={{marginBottom:20}}><div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>General Notes</div><textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} rows={2} placeholder="How did the session feel?" style={{width:"100%",background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none"}}/></div>
                   </>
                 )}
@@ -1963,7 +2027,7 @@ function CompScreen({user}){
 }
 
 // ── HOME ──────────────────────────────────────────────────────────────────────
-function HomeScreen({user,setTab,onSignOut,onReplayTutorial}){
+function HomeScreen({user,setTab,onSignOut,onReplayTutorial,darkMode,toggleDarkMode}){
   const [entries,setEntries]=useState([]);
   const [profile,setProfile]=useState({name:null,belt:"White",location:""});
   const [editing,setEditing]=useState(false);
@@ -2047,6 +2111,15 @@ function HomeScreen({user,setTab,onSignOut,onReplayTutorial}){
           <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Location</div>
           <input value={locationInput} onChange={e=>setLocationInput(e.target.value)} placeholder="e.g. Auckland, New Zealand" style={{width:"100%",background:T.cardAlt,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:14,outline:"none",marginBottom:12}}/>
           <div style={{fontSize:11,color:T.muted,marginBottom:14,fontStyle:"italic"}}>Used for finding nearby BJJ events</div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,padding:"12px 14px",background:T.cardAlt,borderRadius:12,border:`1px solid ${T.border}`}}>
+            <div>
+              <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8}}>Dark Mode</div>
+              <div style={{fontSize:11,color:T.muted,marginTop:2}}>{darkMode?"On":"Off"}</div>
+            </div>
+            <button onClick={toggleDarkMode} style={{width:48,height:28,borderRadius:14,border:"none",cursor:"pointer",background:darkMode?T.teal:T.border,position:"relative",transition:"background 0.2s"}}>
+              <div style={{width:22,height:22,borderRadius:11,background:"#fff",position:"absolute",top:3,left:darkMode?23:3,transition:"left 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}/>
+            </button>
+          </div>
           <div style={{display:"flex",gap:8,marginBottom:8}}><Btn onClick={saveProfile} style={{flex:1,padding:"11px"}}>Save</Btn><Btn onClick={()=>setEditing(false)} variant="ghost" style={{flex:1,padding:"11px"}}>Cancel</Btn></div>
           <button onClick={onSignOut} style={{width:"100%",background:"none",border:`1px solid #fca5a5`,borderRadius:10,padding:"10px",color:"#dc2626",fontSize:13,fontWeight:600,cursor:"pointer"}}>Sign Out</button>
         </Card>
@@ -2120,6 +2193,10 @@ function HomeScreen({user,setTab,onSignOut,onReplayTutorial}){
           <div style={{marginTop:4,marginBottom:8}}>
             <div style={{fontFamily:"'DM Serif Display'",fontSize:18,color:T.text,marginBottom:10}}>What's New</div>
             {[
+              {
+                version:"v0.7",date:"Mar 2025",
+                items:["Dark mode with toggle in Edit Profile","Journal search & filter by session type","Screen stays awake during timer sessions (Wake Lock)","Technique autocomplete from your library when logging sessions"],
+              },
               {
                 version:"v0.6",date:"Mar 2025",
                 items:["Journal & Calendar merged into one Schedule tab with sub-tabs","App tutorial walkthrough on first launch with replay from Home screen","Bottom nav streamlined from 6 tabs to 5"],
@@ -2217,6 +2294,22 @@ export default function OpenmatApp(){
   const [session,setSession]=useState(undefined);
   const [tab,setTab]=useState("home");
   const [showTutorial,setShowTutorial]=useState(false);
+  const [darkMode,setDarkMode]=useState(()=>{
+    const saved=localStorage.getItem("openmat_dark_mode");
+    const isDark=saved==="1";
+    setTheme(isDark);
+    if(typeof document!=="undefined") document.body.style.background=isDark?DARK.bg:LIGHT.bg;
+    return isDark;
+  });
+  const toggleDarkMode=()=>{
+    setDarkMode(prev=>{
+      const next=!prev;
+      setTheme(next);
+      localStorage.setItem("openmat_dark_mode",next?"1":"0");
+      document.body.style.background=next?DARK.bg:LIGHT.bg;
+      return next;
+    });
+  };
 
   useEffect(()=>{
     const s=document.createElement("style");s.textContent=GLOBAL_CSS;document.head.appendChild(s);return()=>document.head.removeChild(s);
@@ -2262,7 +2355,7 @@ export default function OpenmatApp(){
         <div style={{fontSize:11,color:T.muted,fontFamily:"'JetBrains Mono'",fontWeight:600}}>{new Date().toLocaleDateString("en",{weekday:"short",month:"short",day:"numeric"})}</div>
       </div>
       <div style={{flex:1,overflowY:"auto",paddingTop:16,paddingBottom:80}}>
-        {tab==="home"       &&<HomeScreen user={session.user} setTab={setTab} onSignOut={signOut} onReplayTutorial={replayTutorial}/>}
+        {tab==="home"       &&<HomeScreen user={session.user} setTab={setTab} onSignOut={signOut} onReplayTutorial={replayTutorial} darkMode={darkMode} toggleDarkMode={toggleDarkMode}/>}
         {tab==="timer"      &&<TimerScreen/>}
         {tab==="techniques" &&<TechniqueScreen user={session.user}/>}
         {tab==="schedule"   &&<ScheduleScreen user={session.user}/>}
