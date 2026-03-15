@@ -1,0 +1,231 @@
+import { useState, useEffect } from "react";
+import { supabase } from "../lib/supabase";
+import { T } from "../theme";
+import { BELT_COLORS, BELT_TEXT } from "../data/ibjjfRules";
+import { SectionTitle, Card, Pill, StatBox, Btn, Spinner } from "../components/ui";
+
+const TUTORIAL_STEPS = [
+  {icon:"👋",title:"Welcome to Openmat!",desc:"Your personal jiu-jitsu companion. Let's take a quick tour of the app so you can get the most out of it."},
+  {icon:"📅",title:"Schedule",desc:"Log every training session, track your weekly streak, and view your training history on the calendar. All in one place."},
+  {icon:"📚",title:"Technique Library",desc:"Browse 12 categories of BJJ techniques across all skill levels. Save your favourites to your personal library with video links and notes."},
+  {icon:"🏆",title:"Competition Prep",desc:"Build a position-by-position game plan, find upcoming events near you with AI search, and review IBJJF rules for your division."},
+  {icon:"⏱",title:"Sparring Timer",desc:"Set up rounds with custom lengths, rest periods, and bell sounds. Go fullscreen and screen mirror to a TV for the whole gym to see."},
+  {icon:"🥋",title:"Set Up Your Profile",desc:"Head to the Home screen and tap 'Edit Profile' to set your name, belt rank, and location. Your location is used to find nearby events."},
+];
+
+export function TutorialOverlay({onComplete}) {
+  const [step, setStep] = useState(0);
+  const s = TUTORIAL_STEPS[step];
+  const isLast = step === TUTORIAL_STEPS.length - 1;
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(13,27,42,0.92)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20,animation:"fadeUp 0.3s ease"}}>
+      <div style={{background:T.surface,borderRadius:24,padding:"32px 24px",maxWidth:380,width:"100%",textAlign:"center",boxShadow:"0 12px 40px rgba(0,0,0,0.3)",animation:"popIn 0.3s ease"}}>
+        <div style={{fontSize:52,marginBottom:16}}>{s.icon}</div>
+        <div style={{fontFamily:"'DM Serif Display'",fontSize:24,color:T.text,marginBottom:8,lineHeight:1.2}}>{s.title}</div>
+        <div style={{fontSize:14,color:T.muted,lineHeight:1.7,marginBottom:24,padding:"0 8px"}}>{s.desc}</div>
+        <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:20}}>
+          {TUTORIAL_STEPS.map((_,i) => <div key={i} style={{width:i===step?20:8,height:8,borderRadius:4,background:i===step?T.teal:T.border,transition:"all 0.3s"}}/>)}
+        </div>
+        <div style={{display:"flex",gap:10}}>
+          {step > 0 && <button onClick={()=>setStep(s=>s-1)} style={{flex:1,padding:"13px",background:"none",border:`1.5px solid ${T.border}`,borderRadius:12,color:T.muted,fontSize:14,fontWeight:700,cursor:"pointer"}}>← Back</button>}
+          {!isLast ? (
+            <button onClick={()=>setStep(s=>s+1)} style={{flex:1,padding:"13px",background:T.teal,border:"none",borderRadius:12,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:`0 2px 12px ${T.teal}44`}}>Next →</button>
+          ) : (
+            <button onClick={onComplete} style={{flex:1,padding:"13px",background:T.teal,border:"none",borderRadius:12,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:`0 2px 12px ${T.teal}44`}}>Get Started 🥋</button>
+          )}
+        </div>
+        {!isLast && <button onClick={onComplete} style={{background:"none",border:"none",color:T.muted,fontSize:12,cursor:"pointer",marginTop:14,padding:0}}>Skip tutorial</button>}
+      </div>
+    </div>
+  );
+}
+
+export default function HomeScreen({user, setTab, onSignOut, onReplayTutorial, darkMode, toggleDarkMode}) {
+  const [entries, setEntries] = useState([]);
+  const [profile, setProfile] = useState({name:null,belt:"White",location:""});
+  const [editing, setEditing] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [beltInput, setBeltInput] = useState("White");
+  const [locationInput, setLocationInput] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [feedback, setFeedback] = useState("");
+  const [feedbackSent, setFeedbackSent] = useState(false);
+  const [feedbackSaving, setFeedbackSaving] = useState(false);
+
+  useEffect(() => {
+    Promise.all([
+      supabase.from("journal_entries").select("*").eq("user_id",user.id).order("date",{ascending:false}),
+      supabase.from("profiles").select("*").eq("id",user.id).single(),
+    ]).then(([{data:j},{data:p}]) => {
+      if (j) setEntries(j);
+      if (p) { setProfile(p); setNameInput(p.name); setBeltInput(p.belt); setLocationInput(p.location||""); }
+      setLoading(false);
+    });
+  }, [user.id]);
+
+  const saveProfile = async () => {
+    const {error} = await supabase.from("profiles").upsert({id:user.id,name:nameInput,belt:beltInput,location:locationInput,updated_at:new Date().toISOString()});
+    if (error) { console.error("Failed to save profile:", error.message); setNameInput(profile.name); setBeltInput(profile.belt); setLocationInput(profile.location||""); return; }
+    setProfile({name:nameInput,belt:beltInput,location:locationInput}); setEditing(false);
+  };
+
+  const submitFeedback = async () => {
+    if (!feedback.trim()) return;
+    setFeedbackSaving(true);
+    const {error} = await supabase.from("feedback").insert({user_id:user.id,message:feedback.trim()});
+    if (!error) { setFeedbackSent(true); setFeedback(""); }
+    setFeedbackSaving(false);
+  };
+
+  const thisWeek = entries.filter(e => (new Date()-new Date(e.date)) < 7*86400000).length;
+  const totalHours = Math.floor(entries.reduce((a,e) => a+Number(e.duration||0), 0)/60);
+  const lastEntry = entries[0];
+  const hour = new Date().getHours();
+  const greeting = hour<12?"Good morning":hour<17?"Good afternoon":"Good evening";
+  const actions = [
+    {icon:"⏱",label:"Sparring Timer",sub:"Set up rounds",action:()=>setTab("timer"),color:T.teal,bg:T.tealLight},
+    {icon:"📓",label:"Log Session",sub:"Record training",action:()=>setTab("schedule"),color:T.orange,bg:T.orangeLight},
+    {icon:"📅",label:"Calendar",sub:"Schedule & track",action:()=>setTab("schedule"),color:T.green,bg:T.greenLight},
+    {icon:"🏆",label:"Compete",sub:"Game plan & events",action:()=>setTab("comp"),color:T.teal,bg:T.tealLight},
+  ];
+  const isNewUser = !loading && (!profile.name || profile.name==="Fighter") && entries.length===0;
+
+  return (
+    <div style={{padding:"0 16px",animation:"fadeUp 0.4s ease"}}>
+      {isNewUser && (
+        <div style={{background:`linear-gradient(135deg,${T.teal},#2a5f78)`,borderRadius:18,padding:"20px",marginBottom:16,boxShadow:`0 4px 20px ${T.teal}44`,animation:"popIn 0.4s ease"}}>
+          <div style={{fontSize:32,marginBottom:8}}>👋</div>
+          <div style={{fontFamily:"'DM Serif Display'",fontSize:22,color:"#fff",marginBottom:6}}>Welcome to Openmat!</div>
+          <div style={{fontSize:13,color:"rgba(255,255,255,0.8)",lineHeight:1.6,marginBottom:16}}>Your personal jiu-jitsu companion. Start by setting your name and belt rank, then log your first session on the mats.</div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>setEditing(true)} style={{flex:1,background:"#fff",border:"none",borderRadius:12,padding:"11px",fontWeight:700,fontSize:13,color:T.teal,cursor:"pointer"}}>Set Up Profile</button>
+            <button onClick={()=>setTab("schedule")} style={{flex:1,background:"rgba(255,255,255,0.15)",border:"1.5px solid rgba(255,255,255,0.3)",borderRadius:12,padding:"11px",fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer"}}>Log First Session</button>
+          </div>
+        </div>
+      )}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,padding:"16px",background:T.teal,borderRadius:18,boxShadow:`0 4px 20px ${T.teal}44`}}>
+        <div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,0.7)",fontWeight:600,marginBottom:2}}>{greeting} 👋</div>
+          <div style={{fontFamily:"'DM Serif Display'",fontSize:26,color:"#fff",lineHeight:1}}>{profile.name||user.email?.split("@")[0]||"Fighter"}</div>
+          <div style={{marginTop:6}}><span style={{background:BELT_COLORS[profile.belt],color:BELT_TEXT[profile.belt],borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}>{profile.belt} Belt</span></div>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+          <div style={{width:52,height:52,borderRadius:"50%",background:"rgba(255,255,255,0.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,border:"2px solid rgba(255,255,255,0.3)"}}>🥋</div>
+          <button onClick={()=>setEditing(e=>!e)} style={{fontSize:11,color:"rgba(255,255,255,0.7)",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Edit profile</button>
+        </div>
+      </div>
+      {editing && (
+        <Card style={{border:`1.5px solid ${T.teal}`,marginBottom:12}}>
+          <div style={{fontFamily:"'DM Serif Display'",fontSize:20,marginBottom:12}}>Edit Profile</div>
+          <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Your Name</div>
+          <input value={nameInput} onChange={e=>setNameInput(e.target.value)} style={{width:"100%",background:T.cardAlt,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:14,outline:"none",marginBottom:12}}/>
+          <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8}}>Belt Rank</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>{Object.keys(BELT_COLORS).map(b => <button key={b} onClick={()=>setBeltInput(b)} style={{background:beltInput===b?BELT_COLORS[b]:"none",color:beltInput===b?BELT_TEXT[b]:T.muted,border:`2px solid ${BELT_COLORS[b]}`,borderRadius:8,padding:"5px 14px",fontSize:12,cursor:"pointer",fontWeight:700}}>{b}</button>)}</div>
+          <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Location</div>
+          <input value={locationInput} onChange={e=>setLocationInput(e.target.value)} placeholder="e.g. Auckland, New Zealand" style={{width:"100%",background:T.cardAlt,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:14,outline:"none",marginBottom:12}}/>
+          <div style={{fontSize:11,color:T.muted,marginBottom:14,fontStyle:"italic"}}>Used for finding nearby BJJ events</div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,padding:"12px 14px",background:T.cardAlt,borderRadius:12,border:`1px solid ${T.border}`}}>
+            <div>
+              <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8}}>Dark Mode</div>
+              <div style={{fontSize:11,color:T.muted,marginTop:2}}>{darkMode?"On":"Off"}</div>
+            </div>
+            <button onClick={toggleDarkMode} style={{width:48,height:28,borderRadius:14,border:"none",cursor:"pointer",background:darkMode?T.teal:T.border,position:"relative",transition:"background 0.2s"}}>
+              <div style={{width:22,height:22,borderRadius:11,background:"#fff",position:"absolute",top:3,left:darkMode?23:3,transition:"left 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}/>
+            </button>
+          </div>
+          <div style={{display:"flex",gap:8,marginBottom:8}}><Btn onClick={saveProfile} style={{flex:1,padding:"11px"}}>Save</Btn><Btn onClick={()=>setEditing(false)} variant="ghost" style={{flex:1,padding:"11px"}}>Cancel</Btn></div>
+          <button onClick={onSignOut} style={{width:"100%",background:"none",border:`1px solid #fca5a5`,borderRadius:10,padding:"10px",color:"#dc2626",fontSize:13,fontWeight:600,cursor:"pointer"}}>Sign Out</button>
+        </Card>
+      )}
+      {loading ? <div style={{display:"flex",justifyContent:"center",padding:"20px 0"}}><Spinner size={28}/></div> : (
+        <>
+          <div style={{display:"flex",gap:8,marginBottom:14}}>
+            <StatBox label="This Week" value={thisWeek} icon="📅" color={T.teal} bg={T.tealLight}/>
+            <StatBox label="Total Hours" value={totalHours} icon="⏱" color={T.orange} bg={T.orangeLight}/>
+            <StatBox label="Sessions" value={entries.length} icon="🥋" color={T.green} bg={T.greenLight}/>
+          </div>
+          <div style={{fontFamily:"'DM Serif Display'",fontSize:18,color:T.text,marginBottom:10}}>Quick Actions</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+            {actions.map(a => (
+              <button key={a.label} onClick={a.action} style={{background:a.bg,border:`1.5px solid ${a.color}22`,borderRadius:14,padding:"14px",cursor:"pointer",textAlign:"left",transition:"transform 0.15s,box-shadow 0.15s",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}
+                onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=`0 4px 16px ${a.color}33`;}}
+                onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 2px 8px rgba(0,0,0,0.06)";}}>
+                <div style={{fontSize:26,marginBottom:6}}>{a.icon}</div>
+                <div style={{fontWeight:700,fontSize:13,color:T.text}}>{a.label}</div>
+                <div style={{fontSize:11,color:T.muted,marginTop:2}}>{a.sub}</div>
+              </button>
+            ))}
+          </div>
+          {lastEntry && (
+            <>
+              <div style={{fontFamily:"'DM Serif Display'",fontSize:18,color:T.text,marginBottom:10}}>Last Session</div>
+              <Card style={{borderLeft:`4px solid ${T.teal}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><Pill label={lastEntry.type}/><span style={{fontSize:11,color:T.muted,fontFamily:"'JetBrains Mono'"}}>{lastEntry.date} · {lastEntry.duration}min</span></div>
+                {lastEntry.learnings && <div style={{background:T.tealLight,borderRadius:8,padding:"8px 10px",marginBottom:6}}><div style={{fontSize:10,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:1}}>💡 Key Learnings</div><div style={{fontSize:12,color:T.text}}>{lastEntry.learnings.slice(0,100)}{lastEntry.learnings.length>100?"...":""}</div></div>}
+                {lastEntry.notes && <div style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>{lastEntry.notes.slice(0,80)}{lastEntry.notes.length>80?"...":""}</div>}
+              </Card>
+            </>
+          )}
+          <Card style={{border:`1.5px solid ${T.orange}33`,background:T.orangeLight,marginTop:4,marginBottom:8}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+              <span style={{background:T.orange,color:"#fff",borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700,letterSpacing:1}}>BETA</span>
+              <div style={{fontSize:13,fontWeight:700,color:T.text}}>Help us improve Openmat</div>
+            </div>
+            <div style={{fontSize:12,color:T.muted,lineHeight:1.6,marginBottom:10}}>The Openmat App is still in Beta. Please leave your feedback below so we can improve the App over the next few months.</div>
+            {feedbackSent ? (
+              <div style={{background:T.greenLight,border:`1px solid ${T.green}44`,borderRadius:10,padding:"10px 14px",textAlign:"center"}}>
+                <div style={{fontSize:20,marginBottom:4}}>🙏</div>
+                <div style={{fontSize:13,fontWeight:700,color:T.green}}>Thanks for the feedback!</div>
+              </div>
+            ) : (
+              <>
+                <textarea value={feedback} onChange={e=>setFeedback(e.target.value)} maxLength={500} rows={3}
+                  placeholder="What's working? What could be better? Any features you'd love to see?"
+                  style={{width:"100%",background:T.surface,border:`1.5px solid ${T.orange}44`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none",marginBottom:8}}/>
+                <Btn onClick={submitFeedback} disabled={feedbackSaving||!feedback.trim()} style={{width:"100%",padding:"11px",background:T.orange,boxShadow:`0 2px 8px ${T.orange}44`}}>
+                  {feedbackSaving?<Spinner size={16} color="#fff"/>:"Send Feedback →"}
+                </Btn>
+              </>
+            )}
+          </Card>
+          <button onClick={onReplayTutorial} style={{width:"100%",background:T.tealLight,border:`1.5px solid ${T.teal}33`,borderRadius:14,padding:"14px",cursor:"pointer",display:"flex",alignItems:"center",gap:10,marginBottom:14,transition:"all 0.15s"}}
+            onMouseEnter={e=>{e.currentTarget.style.borderColor=T.teal;}}
+            onMouseLeave={e=>{e.currentTarget.style.borderColor=`${T.teal}33`;}}>
+            <span style={{fontSize:22}}>❓</span>
+            <div style={{textAlign:"left"}}>
+              <div style={{fontWeight:700,fontSize:13,color:T.text}}>How to Use Openmat</div>
+              <div style={{fontSize:11,color:T.muted,marginTop:1}}>Replay the app walkthrough</div>
+            </div>
+            <span style={{marginLeft:"auto",color:T.teal,fontSize:13}}>→</span>
+          </button>
+          <div style={{marginTop:4,marginBottom:8}}>
+            <div style={{fontFamily:"'DM Serif Display'",fontSize:18,color:T.text,marginBottom:10}}>What's New</div>
+            {[
+              {version:"v0.7",date:"Mar 2025",items:["Dark mode with toggle in Edit Profile","Journal search & filter by session type","Screen stays awake during timer sessions (Wake Lock)","Technique autocomplete from your library when logging sessions"]},
+              {version:"v0.6",date:"Mar 2025",items:["Journal & Calendar merged into one Schedule tab with sub-tabs","App tutorial walkthrough on first launch with replay from Home screen","Bottom nav streamlined from 6 tabs to 5"]},
+              {version:"v0.5",date:"Mar 2025",items:["AI event search now uses your profile location — no more hardcoded region","Location field added to profile — set your city to find nearby events","Calendar log session modal now matches full journal form (Workout type, techniques, notes)","Vercel serverless API proxy for reliable Anthropic API calls"]},
+              {version:"v0.4",date:"Mar 2025",items:["Workout session type added to journal — log gym sessions alongside BJJ","Music app shortcuts on timer screen (Spotify, YouTube Music, Apple Music)"]},
+              {version:"v0.3",date:"Feb 2025",items:["My Library redesigned — category tiles with drill-in view","Recently Added strip shows your last 3 saved techniques","Save any standard library technique silently with one tap","AI event search now filters out past events automatically","Add AI-found events directly to My Events & Calendar"]},
+            ].map((rel,i) => (
+              <div key={rel.version} style={{marginBottom:10,opacity:i===0?1:0.85}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                  <span style={{background:i===0?T.teal:T.cardAlt,color:i===0?"#fff":T.muted,borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700,fontFamily:"'JetBrains Mono'"}}>{rel.version}</span>
+                  <span style={{fontSize:11,color:T.muted}}>{rel.date}</span>
+                  {i===0 && <span style={{background:T.greenLight,color:T.green,borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700}}>Latest</span>}
+                </div>
+                <div style={{borderLeft:`2px solid ${i===0?T.teal:T.border}`,paddingLeft:12}}>
+                  {rel.items.map((item,j) => (
+                    <div key={j} style={{display:"flex",gap:6,alignItems:"flex-start",marginBottom:4}}>
+                      <span style={{color:i===0?T.teal:T.subtle,fontSize:12,flexShrink:0,marginTop:1}}>•</span>
+                      <span style={{fontSize:12,color:i===0?T.text:T.muted,lineHeight:1.5}}>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
