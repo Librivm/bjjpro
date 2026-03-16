@@ -9,6 +9,7 @@ import ScheduleScreen from "./screens/ScheduleScreen";
 import CompScreen from "./screens/CompScreen";
 import HomeScreen, { TutorialOverlay } from "./screens/HomeScreen";
 import GymJoinScreen from "./screens/GymJoinScreen";
+import ProfileSetupScreen from "./screens/ProfileSetupScreen";
 
 export default function OpenmatApp() {
   const [session, setSession] = useState(undefined);
@@ -71,6 +72,11 @@ export default function OpenmatApp() {
     </div>
   );
   if (!session) return <AuthScreen />;
+
+  // Profile setup gate — new users who haven't set their name yet
+  if (profile !== undefined && profile !== null && !profile?.name) {
+    return <ProfileSetupScreen user={session.user} onComplete={setProfile} />;
+  }
 
   // Gym join gate — profile loaded but not yet joined a gym (skippable)
   if (!skippedGymJoin && profile !== undefined && !profile?.gym_id) {
