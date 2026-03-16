@@ -188,6 +188,30 @@ export default function ScheduleScreen({user, profile}) {
     setEntries(updated); setViewEntry(v => v&&v.id===id ? {...v,...fields} : v);
   };
 
+  const getClassPreset = (dateStr) => {
+    if (!scheduledClasses.length) return {};
+    const dow = new Date(dateStr + "T12:00:00").getDay();
+    const dayClasses = scheduledClasses.filter(sc =>
+      sc.day_of_week !== null ? sc.day_of_week === dow : sc.event_date === dateStr
+    );
+    if (!dayClasses.length) return {};
+    const earliest = [...dayClasses].sort((a, b) => (a.start_time || "").localeCompare(b.start_time || ""))[0];
+    const title = (earliest.title || "").toLowerCase();
+    let type = "Open Mat";
+    if (title.includes("no-gi") || title.includes("nogi") || title.includes("no gi")) type = "No-Gi";
+    else if (title.includes("gi")) type = "Gi";
+    else if (title.includes("drill")) type = "Drilling";
+    else if (title.includes("private")) type = "Private";
+    let duration = 60;
+    if (earliest.start_time && earliest.end_time) {
+      const [sh, sm] = earliest.start_time.split(":").map(Number);
+      const [eh, em] = earliest.end_time.split(":").map(Number);
+      const calc = (eh * 60 + em) - (sh * 60 + sm);
+      if (calc > 0) duration = calc;
+    }
+    return { type, duration };
+  };
+
   const thisWeekKey = getWeekKey(todayStr());
   const sessionsThisWeek = entries.filter(e => getWeekKey(e.date) === thisWeekKey).length;
   const goalHit = sessionsThisWeek >= weeklyGoal;
@@ -257,7 +281,7 @@ export default function ScheduleScreen({user, profile}) {
             <div style={{fontSize:11,color:T.muted,marginBottom:10}}>Tap an empty day to log a session</div>
             <div style={{display:"flex",justifyContent:"space-between"}}>
               {last7.map(d => (
-                <div key={d.key} style={{textAlign:"center"}} onClick={()=>{if(!d.trained){setForm(f=>({...f,date:d.key}));setAdding(true);}}}>
+                <div key={d.key} style={{textAlign:"center"}} onClick={()=>{if(!d.trained){setForm(f=>({...f,date:d.key,...getClassPreset(d.key)}));setAdding(true);}}}>
                   <div style={{width:34,height:34,borderRadius:10,background:d.trained?T.teal:T.surface,border:`1.5px solid ${d.trained?T.teal:T.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,marginBottom:4,color:"#fff",fontWeight:700,cursor:d.trained?"default":"pointer",transition:"transform 0.15s"}}
                     onMouseEnter={e=>{if(!d.trained)e.currentTarget.style.transform="scale(1.1)";}}
                     onMouseLeave={e=>{e.currentTarget.style.transform="scale(1)";}}>
@@ -268,7 +292,7 @@ export default function ScheduleScreen({user, profile}) {
               ))}
             </div>
           </Card>
-          <Btn onClick={()=>setAdding(true)} style={{width:"100%",padding:"14px",fontSize:15,marginBottom:14,marginTop:2}}>+ Log Today's Session</Btn>
+          <Btn onClick={()=>{setForm(f=>({...f,date:todayStr(),...getClassPreset(todayStr())}));setAdding(true);}} style={{width:"100%",padding:"14px",fontSize:15,marginBottom:14,marginTop:2}}>+ Log Today's Session</Btn>
           {!loading && entries.length>0 && (
             <div style={{marginBottom:12}}>
               <input value={searchText} onChange={e=>setSearchText(e.target.value)} placeholder="Search learnings, techniques, notes..."
@@ -383,7 +407,7 @@ export default function ScheduleScreen({user, profile}) {
                   {e.learnings && <div style={{fontSize:12,color:T.text,marginTop:4}}>{e.learnings.slice(0,100)}{e.learnings.length>100?"...":""}</div>}
                 </Card>
               ))}
-              {selectedData.trained.length===0 && !selectedData.comp && <Btn onClick={()=>{setForm(f=>({...f,date:selectedData.dateStr}));setAdding(true);}} style={{width:"100%",padding:"12px",marginBottom:4}}>+ Log Session for This Day</Btn>}
+              {selectedData.trained.length===0 && !selectedData.comp && <Btn onClick={()=>{setForm(f=>({...f,date:selectedData.dateStr,...getClassPreset(selectedData.dateStr)}));setAdding(true);}} style={{width:"100%",padding:"12px",marginBottom:4}}>+ Log Session for This Day</Btn>}
             </div>
           )}
         </>
