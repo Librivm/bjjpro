@@ -51,6 +51,10 @@ export default function HomeScreen({user, profile, setTab, onSignOut, onReplayTu
   const [feedback, setFeedback] = useState("");
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [feedbackSaving, setFeedbackSaving] = useState(false);
+  const [gymCode, setGymCode] = useState("");
+  const [gymFound, setGymFound] = useState(null);
+  const [gymJoining, setGymJoining] = useState(false);
+  const [gymError, setGymError] = useState("");
 
   useEffect(() => {
     supabase.from("journal_entries").select("*").eq("user_id", user.id).order("date", { ascending: false })
@@ -71,6 +75,23 @@ export default function HomeScreen({user, profile, setTab, onSignOut, onReplayTu
     if (error) { console.error("Failed to save profile:", error.message); setNameInput(profile?.name || ""); setBeltInput(profile?.belt || "White"); setLocationInput(profile?.location || ""); return; }
     if (data) onProfileUpdate(data);
     setEditing(false);
+  };
+
+  const lookupGym = async () => {
+    const code = gymCode.trim().toUpperCase();
+    if (code.length !== 6) { setGymError("Enter a 6-character code"); return; }
+    setGymError(""); setGymFound(null);
+    const { data } = await supabase.from("gyms").select("*").eq("join_code", code).single();
+    if (!data) { setGymError("Invalid code — check with your coach"); return; }
+    setGymFound(data);
+  };
+
+  const joinGym = async () => {
+    if (!gymFound) return;
+    setGymJoining(true);
+    const { data } = await supabase.from("profiles").upsert({ id: user.id, gym_id: gymFound.id, role: "member" }).select("*").single();
+    if (data) { onProfileUpdate(data); setGymFound(null); setGymCode(""); }
+    setGymJoining(false);
   };
 
   const submitFeedback = async () => {
@@ -129,6 +150,25 @@ export default function HomeScreen({user, profile, setTab, onSignOut, onReplayTu
           <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Location</div>
           <input value={locationInput} onChange={e=>setLocationInput(e.target.value)} placeholder="e.g. Auckland, New Zealand" style={{width:"100%",background:T.cardAlt,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:14,outline:"none",marginBottom:12}}/>
           <div style={{fontSize:11,color:T.muted,marginBottom:14,fontStyle:"italic"}}>Used for finding nearby BJJ events</div>
+          <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8}}>Gym</div>
+          {profile?.gym_id ? (
+            <div style={{background:T.greenLight,border:`1px solid ${T.green}44`,borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:13,color:T.green,fontWeight:700}}>✓ Gym connected</div>
+          ) : (
+            <div style={{marginBottom:14}}>
+              <div style={{display:"flex",gap:8,marginBottom:6}}>
+                <input value={gymCode} onChange={e=>{setGymCode(e.target.value.toUpperCase().slice(0,6));setGymError("");setGymFound(null);}} placeholder="Join code (e.g. ABC123)" maxLength={6}
+                  style={{flex:1,background:T.cardAlt,border:`1.5px solid ${gymError?'#dc2626':T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",letterSpacing:2,fontFamily:"'JetBrains Mono'"}}/>
+                <Btn onClick={lookupGym} disabled={gymCode.length!==6} style={{padding:"10px 14px",fontSize:12}}>Find</Btn>
+              </div>
+              {gymError && <div style={{fontSize:12,color:"#dc2626",marginBottom:6}}>{gymError}</div>}
+              {gymFound && (
+                <div style={{background:T.tealLight,border:`1.5px solid ${T.teal}44`,borderRadius:10,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div><div style={{fontSize:11,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8}}>Found</div><div style={{fontSize:14,fontWeight:700,color:T.text}}>{gymFound.name}</div></div>
+                  <Btn onClick={joinGym} disabled={gymJoining} style={{padding:"8px 14px",fontSize:12}}>{gymJoining?<Spinner size={14} color="#fff"/>:"Join →"}</Btn>
+                </div>
+              )}
+            </div>
+          )}
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,padding:"12px 14px",background:T.cardAlt,borderRadius:12,border:`1px solid ${T.border}`}}>
             <div>
               <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8}}>Dark Mode</div>

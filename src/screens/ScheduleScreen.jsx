@@ -229,12 +229,12 @@ export default function ScheduleScreen({user, profile}) {
               <button onClick={()=>{setEditingGoal(e=>!e);setGoalInput(weeklyGoal);}} style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,padding:"7px 12px",fontSize:12,fontWeight:700,color:T.muted,cursor:"pointer"}}>{editingGoal?"✕":"Edit"}</button>
             </div>
             {editingGoal && (
-              <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${T.border}`,display:"flex",gap:8,alignItems:"center"}}>
-                <div style={{fontSize:12,color:T.muted,fontWeight:600}}>Sessions per week:</div>
-                <div style={{display:"flex",gap:6}}>
-                  {[1,2,3,4,5,6,7].map(n => <button key={n} onClick={()=>setGoalInput(n)} style={{width:32,height:32,borderRadius:8,border:`1.5px solid ${goalInput===n?T.teal:T.border}`,background:goalInput===n?T.teal:T.surface,color:goalInput===n?"#fff":T.muted,fontWeight:700,fontSize:13,cursor:"pointer"}}>{n}</button>)}
+              <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${T.border}`}}>
+                <div style={{fontSize:12,color:T.muted,fontWeight:600,marginBottom:8}}>Sessions per week:</div>
+                <div style={{display:"flex",gap:6,marginBottom:10}}>
+                  {[1,2,3,4,5,6,7].map(n => <button key={n} onClick={()=>setGoalInput(n)} style={{width:36,height:36,borderRadius:8,border:`1.5px solid ${goalInput===n?T.teal:T.border}`,background:goalInput===n?T.teal:T.surface,color:goalInput===n?"#fff":T.muted,fontWeight:700,fontSize:13,cursor:"pointer"}}>{n}</button>)}
                 </div>
-                <Btn onClick={saveGoal} disabled={savingGoal} style={{padding:"6px 14px",fontSize:12,marginLeft:"auto"}}>{savingGoal?<Spinner size={14} color="#fff"/>:"Save"}</Btn>
+                <Btn onClick={saveGoal} disabled={savingGoal} style={{width:"100%",padding:"10px",fontSize:13}}>{savingGoal?<Spinner size={14} color="#fff"/>:"Save Goal"}</Btn>
               </div>
             )}
           </Card>

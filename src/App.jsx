@@ -13,6 +13,7 @@ import GymJoinScreen from "./screens/GymJoinScreen";
 export default function OpenmatApp() {
   const [session, setSession] = useState(undefined);
   const [profile, setProfile] = useState(undefined); // undefined = loading, null/obj = loaded
+  const [skippedGymJoin, setSkippedGymJoin] = useState(false);
   const [tab, setTab] = useState("home");
   const [showTutorial, setShowTutorial] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
@@ -71,9 +72,9 @@ export default function OpenmatApp() {
   );
   if (!session) return <AuthScreen />;
 
-  // Gym join gate — profile loaded but not yet joined a gym
-  if (profile !== undefined && !profile?.gym_id) {
-    return <GymJoinScreen user={session.user} onJoined={setProfile} />;
+  // Gym join gate — profile loaded but not yet joined a gym (skippable)
+  if (!skippedGymJoin && profile !== undefined && !profile?.gym_id) {
+    return <GymJoinScreen user={session.user} onJoined={setProfile} onSkip={() => setSkippedGymJoin(true)} />;
   }
 
   const tabs = [

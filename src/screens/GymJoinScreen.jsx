@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabase";
 import { T } from "../theme";
 import { Btn, Spinner } from "../components/ui";
 
-export default function GymJoinScreen({ user, onJoined }) {
+export default function GymJoinScreen({ user, onJoined, onSkip }) {
   const [code, setCode] = useState("");
   const [gym, setGym] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -31,7 +31,7 @@ export default function GymJoinScreen({ user, onJoined }) {
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: T.bg, zIndex: 100, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, animation: "fadeUp 0.4s ease" }}>
+    <div style={{ position: "fixed", inset: 0, background: T.bg, zIndex: 100, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px 16px", animation: "fadeUp 0.4s ease" }}>
       <div style={{ width: "100%", maxWidth: 380 }}>
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{ fontSize: 52, marginBottom: 12 }}>🥋</div>
@@ -78,6 +78,9 @@ export default function GymJoinScreen({ user, onJoined }) {
         <div style={{ textAlign: "center", marginTop: 20, fontSize: 12, color: T.muted, lineHeight: 1.6 }}>
           Don't have a code? Contact your coach or gym admin.
         </div>
+        <button onClick={onSkip} style={{ display: "block", width: "100%", marginTop: 16, background: "none", border: "none", color: T.muted, fontSize: 13, cursor: "pointer", textDecoration: "underline", padding: "8px 0" }}>
+          Skip for now — I'll join later
+        </button>
       </div>
     </div>
   );
