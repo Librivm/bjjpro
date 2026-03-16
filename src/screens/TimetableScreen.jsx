@@ -122,6 +122,8 @@ export default function TimetableScreen({ user, profile, embedded = false }) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editEntry, setEditEntry] = useState(null);
+  const [mySchedule, setMySchedule] = useState(new Set()); // Set of timetable_ids
+  const [toggling, setToggling] = useState(new Set()); // IDs currently being toggled
   const isStaff = profile?.role === "coach" || profile?.role === "admin";
 
   useEffect(() => {
@@ -129,12 +131,26 @@ export default function TimetableScreen({ user, profile, embedded = false }) {
     Promise.all([
       supabase.from("timetable").select("*").eq("gym_id", profile.gym_id).not("day_of_week", "is", null).eq("is_active", true).order("day_of_week").order("start_time"),
       supabase.from("timetable").select("*").eq("gym_id", profile.gym_id).is("day_of_week", null).gte("event_date", todayStr()).eq("is_active", true).order("event_date").order("start_time"),
-    ]).then(([{ data: w }, { data: e }]) => {
+      supabase.from("user_schedule").select("timetable_id").eq("user_id", user.id),
+    ]).then(([{ data: w }, { data: e }, { data: s }]) => {
       if (w) setWeekly(w);
       if (e) setEvents(e);
+      if (s) setMySchedule(new Set(s.map(r => r.timetable_id)));
       setLoading(false);
     });
-  }, [profile?.gym_id]);
+  }, [profile?.gym_id, user.id]);
+
+  const toggleSchedule = async (entryId) => {
+    setToggling(prev => new Set([...prev, entryId]));
+    if (mySchedule.has(entryId)) {
+      setMySchedule(prev => { const n = new Set(prev); n.delete(entryId); return n; });
+      await supabase.from("user_schedule").delete().eq("user_id", user.id).eq("timetable_id", entryId);
+    } else {
+      setMySchedule(prev => new Set([...prev, entryId]));
+      await supabase.from("user_schedule").insert({ user_id: user.id, timetable_id: entryId });
+    }
+    setToggling(prev => { const n = new Set(prev); n.delete(entryId); return n; });
+  };
 
   const handleSave = (row, isEdit) => {
     if (row.day_of_week !== null) {
@@ -154,26 +170,38 @@ export default function TimetableScreen({ user, profile, embedded = false }) {
     else setEvents(prev => prev.filter(r => r.id !== entry.id));
   };
 
-  const ClassCard = ({ entry }) => (
-    <div style={{ background: T.surface, borderRadius: 12, padding: "12px 14px", marginBottom: 8, borderLeft: `4px solid ${T.teal}`, boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{entry.title}</div>
-          <div style={{ fontSize: 12, color: T.teal, fontFamily: "'JetBrains Mono'", marginTop: 2 }}>
-            {fmtTimePretty(entry.start_time)}{entry.end_time ? ` – ${fmtTimePretty(entry.end_time)}` : ""}
+  const ClassCard = ({ entry }) => {
+    const inSchedule = mySchedule.has(entry.id);
+    const isToggling = toggling.has(entry.id);
+    return (
+      <div style={{ background: T.surface, borderRadius: 12, padding: "12px 14px", marginBottom: 8, borderLeft: `4px solid ${inSchedule ? "#8b5cf6" : T.teal}`, boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{entry.title}</div>
+            <div style={{ fontSize: 12, color: T.teal, fontFamily: "'JetBrains Mono'", marginTop: 2 }}>
+              {fmtTimePretty(entry.start_time)}{entry.end_time ? ` – ${fmtTimePretty(entry.end_time)}` : ""}
+            </div>
+            {entry.instructor && <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>👤 {entry.instructor}</div>}
+            {entry.description && <div style={{ fontSize: 11, color: T.muted, marginTop: 4, lineHeight: 1.4 }}>{entry.description}</div>}
           </div>
-          {entry.instructor && <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>👤 {entry.instructor}</div>}
-          {entry.description && <div style={{ fontSize: 11, color: T.muted, marginTop: 4, lineHeight: 1.4 }}>{entry.description}</div>}
+          {isStaff && (
+            <div style={{ display: "flex", gap: 6, marginLeft: 10 }}>
+              <button onClick={() => { setEditEntry(entry); setShowForm(true); }} style={{ background: T.tealLight, border: `1px solid ${T.teal}33`, borderRadius: 6, padding: "4px 8px", fontSize: 11, color: T.teal, cursor: "pointer", fontWeight: 700 }}>Edit</button>
+              <button onClick={() => softDelete(entry)} style={{ background: "#fef2f2", border: "1px solid #fca5a533", borderRadius: 6, padding: "4px 8px", fontSize: 11, color: "#dc2626", cursor: "pointer", fontWeight: 700 }}>Del</button>
+            </div>
+          )}
         </div>
-        {isStaff && (
-          <div style={{ display: "flex", gap: 6, marginLeft: 10 }}>
-            <button onClick={() => { setEditEntry(entry); setShowForm(true); }} style={{ background: T.tealLight, border: `1px solid ${T.teal}33`, borderRadius: 6, padding: "4px 8px", fontSize: 11, color: T.teal, cursor: "pointer", fontWeight: 700 }}>Edit</button>
-            <button onClick={() => softDelete(entry)} style={{ background: "#fef2f2", border: "1px solid #fca5a533", borderRadius: 6, padding: "4px 8px", fontSize: 11, color: "#dc2626", cursor: "pointer", fontWeight: 700 }}>Del</button>
-          </div>
-        )}
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
+          <button
+            onClick={() => toggleSchedule(entry.id)}
+            disabled={isToggling}
+            style={{ width: "100%", padding: "8px", borderRadius: 8, border: `1.5px solid ${inSchedule ? "#8b5cf6" : T.border}`, background: inSchedule ? "#f5f3ff" : T.cardAlt, color: inSchedule ? "#8b5cf6" : T.muted, fontSize: 12, fontWeight: 700, cursor: "pointer", transition: "all 0.15s" }}>
+            {isToggling ? "..." : inSchedule ? "✓ In My Schedule — tap to remove" : "+ Add to My Schedule"}
+          </button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const weekByDay = DAYS.reduce((acc, _, i) => { acc[i] = weekly.filter(e => e.day_of_week === i); return acc; }, {});
 
@@ -181,7 +209,6 @@ export default function TimetableScreen({ user, profile, embedded = false }) {
     <div style={{ animation: "fadeUp 0.4s ease" }}>
       {!embedded && <SectionTitle sub="Weekly schedule & special events">Classes</SectionTitle>}
 
-      {/* Sub-tab toggle */}
       <div style={{ display: "flex", background: T.cardAlt, borderRadius: 12, padding: 4, marginBottom: 16, border: `1px solid ${T.border}` }}>
         {[{ id: "week", label: "Weekly Schedule" }, { id: "events", label: "Special Events" }].map(t => (
           <button key={t.id} onClick={() => setSubTab(t.id)} style={{ flex: 1, padding: "9px", borderRadius: 9, border: "none", background: subTab === t.id ? T.surface : "transparent", color: subTab === t.id ? T.teal : T.muted, fontWeight: 700, fontSize: 12, cursor: "pointer", boxShadow: subTab === t.id ? "0 1px 4px rgba(0,0,0,0.1)" : "none", transition: "all 0.15s" }}>
@@ -195,7 +222,7 @@ export default function TimetableScreen({ user, profile, embedded = false }) {
       ) : subTab === "week" ? (
         <>
           {DAYS.map((_, i) => {
-            const dayIndex = (i + 1) % 7; // Start from Monday (1), wrap to Sunday (0)
+            const dayIndex = (i + 1) % 7;
             const classes = weekByDay[dayIndex] || [];
             const isToday = dayIndex === todayDow;
             if (classes.length === 0 && !isToday) return null;
