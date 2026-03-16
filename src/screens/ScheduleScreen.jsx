@@ -150,6 +150,13 @@ export default function ScheduleScreen({user, profile}) {
   };
   useEffect(() => { fetchData(); }, [user.id]);
 
+  // Refetch scheduled classes whenever user opens the calendar tab (may have changed in Classes tab)
+  useEffect(() => {
+    if (subTab !== "calendar" || !profile?.gym_id) return;
+    supabase.from("user_schedule").select("timetable_id, timetable(*)").eq("user_id", user.id)
+      .then(({ data }) => { if (data) setScheduledClasses(data.map(r => r.timetable).filter(Boolean)); });
+  }, [subTab, profile?.gym_id, user.id]);
+
   const saveGoal = async () => {
     setSavingGoal(true);
     await supabase.from("profiles").upsert({id:user.id, weekly_goal:Number(goalInput), updated_at:new Date().toISOString()});

@@ -150,6 +150,7 @@ export default function HomeScreen({user, profile, setTab, onSignOut, onReplayTu
           <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:5}}>Location</div>
           <input value={locationInput} onChange={e=>setLocationInput(e.target.value)} placeholder="e.g. Auckland, New Zealand" style={{width:"100%",background:T.cardAlt,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:14,outline:"none",marginBottom:12}}/>
           <div style={{fontSize:11,color:T.muted,marginBottom:14,fontStyle:"italic"}}>Used for finding nearby BJJ events</div>
+          <div style={{display:"flex",gap:8,marginBottom:16}}><Btn onClick={saveProfile} style={{flex:1,padding:"11px"}}>Save</Btn><Btn onClick={()=>setEditing(false)} variant="ghost" style={{flex:1,padding:"11px"}}>Cancel</Btn></div>
           <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8}}>Gym</div>
           {profile?.gym_id ? (
             <div style={{background:T.greenLight,border:`1px solid ${T.green}44`,borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:13,color:T.green,fontWeight:700}}>✓ Gym connected</div>
@@ -178,7 +179,6 @@ export default function HomeScreen({user, profile, setTab, onSignOut, onReplayTu
               <div style={{width:22,height:22,borderRadius:11,background:"#fff",position:"absolute",top:3,left:darkMode?23:3,transition:"left 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}/>
             </button>
           </div>
-          <div style={{display:"flex",gap:8,marginBottom:8}}><Btn onClick={saveProfile} style={{flex:1,padding:"11px"}}>Save</Btn><Btn onClick={()=>setEditing(false)} variant="ghost" style={{flex:1,padding:"11px"}}>Cancel</Btn></div>
           <button onClick={onSignOut} style={{width:"100%",background:"none",border:`1px solid #fca5a5`,borderRadius:10,padding:"10px",color:"#dc2626",fontSize:13,fontWeight:600,cursor:"pointer"}}>Sign Out</button>
         </Card>
       )}
