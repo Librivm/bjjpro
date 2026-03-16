@@ -172,6 +172,43 @@ export default function TechniqueScreen({user}) {
     });
   };
 
+  const openVideo = (url) => {
+    if (!url) return;
+    let appUrl = null;
+    // Extract YouTube video ID
+    let videoId = null;
+    if (url.includes("youtube.com/watch")) {
+      try { videoId = new URL(url).searchParams.get("v"); } catch {}
+    } else if (url.includes("youtu.be/")) {
+      videoId = url.split("youtu.be/")[1]?.split(/[?#]/)[0];
+    }
+    if (videoId) appUrl = `vnd.youtube:${videoId}`;
+    // YouTube search URL
+    if (!appUrl && url.includes("youtube.com/results")) {
+      try {
+        const q = new URL(url).searchParams.get("search_query");
+        if (q) appUrl = `youtube://search?q=${encodeURIComponent(q)}`;
+      } catch {}
+    }
+    if (appUrl) {
+      // Try app via hidden iframe; fall back to browser if app doesn't open
+      const iframe = document.createElement("iframe");
+      iframe.style.cssText = "display:none;width:0;height:0;";
+      document.body.appendChild(iframe);
+      iframe.src = appUrl;
+      let appOpened = false;
+      const onBlur = () => { appOpened = true; };
+      window.addEventListener("blur", onBlur);
+      setTimeout(() => {
+        window.removeEventListener("blur", onBlur);
+        if (document.body.contains(iframe)) document.body.removeChild(iframe);
+        if (!appOpened) window.open(url, "_blank");
+      }, 800);
+    } else {
+      window.open(url, "_blank");
+    }
+  };
+
   const getLinkIcon = (url="") => {
     if (url.includes("youtube") || url.includes("youtu.be")) return "▶️ YouTube";
     if (url.includes("instagram")) return "📸 Instagram";
@@ -277,8 +314,8 @@ export default function TechniqueScreen({user}) {
                         <div style={{fontSize:11,color:T.muted}}>{ct.category}</div>
                       </div>
                       {ct.url && (
-                        <a href={ct.url} target="_blank" rel="noreferrer"
-                          style={{flexShrink:0,background:"#8b5cf6",borderRadius:8,padding:"5px 10px",textDecoration:"none",fontSize:12,color:"#fff",fontWeight:700}}>▶ Watch</a>
+                        <button onClick={()=>openVideo(ct.url)}
+                          style={{flexShrink:0,background:"#8b5cf6",borderRadius:8,padding:"5px 10px",border:"none",fontSize:12,color:"#fff",fontWeight:700,cursor:"pointer"}}>▶ Watch</button>
                       )}
                       <button onClick={()=>setViewTech(ct)} style={{flexShrink:0,background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:8,padding:"5px 8px",fontSize:11,color:T.muted,cursor:"pointer",fontWeight:700}}>Notes</button>
                       <button onClick={()=>toggleDrillQueue(ct.id)} style={{flexShrink:0,background:"none",border:"none",fontSize:14,color:"#8b5cf6",cursor:"pointer",padding:"2px 4px"}}>✕</button>
@@ -309,8 +346,8 @@ export default function TechniqueScreen({user}) {
                       </div>
                       <div style={{display:"flex",gap:6,marginLeft:8,flexShrink:0,alignItems:"center"}} onClick={e=>e.stopPropagation()}>
                         {ct.url && (
-                          <a href={ct.url} target="_blank" rel="noreferrer"
-                            style={{background:T.orange,borderRadius:8,padding:"5px 10px",textDecoration:"none",fontSize:12,color:"#fff",fontWeight:700}}>▶</a>
+                          <button onClick={()=>openVideo(ct.url)}
+                            style={{background:T.orange,borderRadius:8,padding:"5px 10px",border:"none",fontSize:12,color:"#fff",fontWeight:700,cursor:"pointer"}}>▶</button>
                         )}
                         <button onClick={()=>toggleDrillQueue(ct.id)}
                           title={inQueue?"Remove from Drill Queue":drillQueue.length>=5?"Queue full (5 max)":"Add to Drill Queue"}
