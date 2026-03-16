@@ -202,7 +202,7 @@ export default function ScheduleScreen({user, profile}) {
     <div style={{padding:"0 16px",animation:"fadeUp 0.4s ease"}}>
       <SectionTitle sub="Log sessions and track your training">Schedule</SectionTitle>
       <div style={{display:"flex",background:T.surface,borderRadius:12,padding:4,marginBottom:16,border:`1px solid ${T.border}`}}>
-        {[["journal","📓 Journal"],["calendar","📅 Calendar"],["classes","🥋 Classes"]].map(([t,l]) => (
+        {[["journal","📓 Journal"],["calendar","📅 Calendar"],...(profile?.gym_id?[["classes","🥋 Classes"]]:[])] .map(([t,l]) => (
           <button key={t} onClick={()=>{setSubTab(t);setSelectedDay(null);}} style={{flex:1,padding:"9px 0",background:subTab===t?T.teal:"none",color:subTab===t?"#fff":T.muted,border:"none",borderRadius:10,fontWeight:700,fontSize:12,cursor:"pointer",transition:"all 0.2s"}}>{l}</button>
         ))}
       </div>
