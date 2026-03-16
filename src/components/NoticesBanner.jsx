@@ -33,6 +33,11 @@ function NoticesAdmin({ user, profile, onNoticeCreated }) {
     if (data) setNotices(prev => prev.map(n => n.id === notice.id ? data : n));
   };
 
+  const deleteNotice = async (noticeId) => {
+    await supabase.from("notices").delete().eq("id", noticeId);
+    setNotices(prev => prev.filter(n => n.id !== noticeId));
+  };
+
   return (
     <Card style={{ border: `1.5px solid ${T.teal}33`, marginTop: 8 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: open ? 14 : 0 }}>
@@ -63,9 +68,12 @@ function NoticesAdmin({ user, profile, onNoticeCreated }) {
                 <div style={{ fontSize: 13, fontWeight: 700, color: n.is_active ? T.text : T.muted }}>{n.title}</div>
                 {n.body && <div style={{ fontSize: 12, color: T.muted, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.body}</div>}
               </div>
-              <button onClick={() => toggleActive(n)} style={{ marginLeft: 10, flexShrink: 0, background: n.is_active ? T.greenLight : T.cardAlt, border: `1px solid ${n.is_active ? T.green : T.border}`, borderRadius: 8, padding: "4px 10px", fontSize: 11, fontWeight: 700, color: n.is_active ? T.green : T.muted, cursor: "pointer" }}>
-                {n.is_active ? "Active" : "Off"}
-              </button>
+              <div style={{ display: "flex", gap: 6, marginLeft: 10, flexShrink: 0 }}>
+                <button onClick={() => toggleActive(n)} style={{ background: n.is_active ? T.greenLight : T.cardAlt, border: `1px solid ${n.is_active ? T.green : T.border}`, borderRadius: 8, padding: "4px 10px", fontSize: 11, fontWeight: 700, color: n.is_active ? T.green : T.muted, cursor: "pointer" }}>
+                  {n.is_active ? "Active" : "Off"}
+                </button>
+                <button onClick={() => deleteNotice(n.id)} style={{ background: "#fef2f2", border: "1px solid #fca5a533", borderRadius: 8, padding: "4px 8px", fontSize: 11, fontWeight: 700, color: "#dc2626", cursor: "pointer" }}>Del</button>
+              </div>
             </div>
           ))}
         </div>

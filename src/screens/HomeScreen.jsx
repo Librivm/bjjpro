@@ -55,6 +55,7 @@ export default function HomeScreen({user, profile, setTab, onSignOut, onReplayTu
   const [gymFound, setGymFound] = useState(null);
   const [gymJoining, setGymJoining] = useState(false);
   const [gymError, setGymError] = useState("");
+  const [changingGym, setChangingGym] = useState(false);
 
   useEffect(() => {
     supabase.from("journal_entries").select("*").eq("user_id", user.id).order("date", { ascending: false })
@@ -90,7 +91,7 @@ export default function HomeScreen({user, profile, setTab, onSignOut, onReplayTu
     if (!gymFound) return;
     setGymJoining(true);
     const { data } = await supabase.from("profiles").upsert({ id: user.id, gym_id: gymFound.id, role: "member" }).select("*").single();
-    if (data) { onProfileUpdate(data); setGymFound(null); setGymCode(""); }
+    if (data) { onProfileUpdate(data); setGymFound(null); setGymCode(""); setChangingGym(false); }
     setGymJoining(false);
   };
 
@@ -153,10 +154,16 @@ export default function HomeScreen({user, profile, setTab, onSignOut, onReplayTu
           <div style={{display:"flex",gap:8,marginBottom:16}}><Btn onClick={saveProfile} style={{flex:1,padding:"11px"}}>Save</Btn><Btn onClick={()=>setEditing(false)} variant="ghost" style={{flex:1,padding:"11px"}}>Cancel</Btn></div>
           <div style={{height:1,background:T.border,marginBottom:16}}/>
           <div style={{fontSize:11,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8}}>Gym</div>
-          {profile?.gym_id ? (
-            <div style={{background:T.greenLight,border:`1px solid ${T.green}44`,borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:13,color:T.green,fontWeight:700}}>✓ Gym connected</div>
+          {profile?.gym_id && !changingGym ? (
+            <div style={{background:T.greenLight,border:`1px solid ${T.green}44`,borderRadius:10,padding:"10px 14px",marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{fontSize:13,color:T.green,fontWeight:700}}>✓ Gym connected</div>
+              <button onClick={()=>{setChangingGym(true);setGymCode("");setGymFound(null);setGymError("");}} style={{background:"none",border:`1px solid ${T.green}66`,borderRadius:8,padding:"4px 10px",fontSize:11,color:T.green,cursor:"pointer",fontWeight:700}}>Change</button>
+            </div>
           ) : (
             <div style={{marginBottom:14}}>
+              {changingGym && (
+                <div style={{fontSize:12,color:T.muted,marginBottom:8}}>Enter your new gym's join code to switch gyms.</div>
+              )}
               <div style={{display:"flex",gap:8,marginBottom:6}}>
                 <input value={gymCode} onChange={e=>{setGymCode(e.target.value.toUpperCase().slice(0,6));setGymError("");setGymFound(null);}} placeholder="Join code (e.g. ABC123)" maxLength={6}
                   style={{flex:1,background:T.cardAlt,border:`1.5px solid ${gymError?'#dc2626':T.border}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",letterSpacing:2,fontFamily:"'JetBrains Mono'"}}/>
@@ -168,6 +175,9 @@ export default function HomeScreen({user, profile, setTab, onSignOut, onReplayTu
                   <div><div style={{fontSize:11,color:T.teal,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8}}>Found</div><div style={{fontSize:14,fontWeight:700,color:T.text}}>{gymFound.name}</div></div>
                   <Btn onClick={joinGym} disabled={gymJoining} style={{padding:"8px 14px",fontSize:12}}>{gymJoining?<Spinner size={14} color="#fff"/>:"Join →"}</Btn>
                 </div>
+              )}
+              {changingGym && (
+                <button onClick={()=>{setChangingGym(false);setGymCode("");setGymFound(null);setGymError("");}} style={{background:"none",border:"none",color:T.muted,fontSize:12,cursor:"pointer",marginTop:6,padding:0,textDecoration:"underline"}}>Cancel</button>
               )}
             </div>
           )}
