@@ -257,6 +257,7 @@ export default function HomeScreen({user, profile, setTab, onSignOut, onReplayTu
           <div style={{marginTop:4,marginBottom:8}}>
             <div style={{fontFamily:"'DM Serif Display'",fontSize:18,color:T.text,marginBottom:10}}>What's New</div>
             {[
+              {version:"v0.8",date:"Mar 2025",items:["Gym support — join your gym with a 6-character code, switch gyms any time from Edit Profile","Coach/admin notices — dismissible banners posted by your gym staff","Weekly class schedule & special events — add classes to your personal calendar","Log Session auto-fills session type & duration from your earliest scheduled class that day","Admin: delete notices permanently, not just toggle off"]},
               {version:"v0.7",date:"Mar 2025",items:["Dark mode with toggle in Edit Profile","Journal search & filter by session type","Screen stays awake during timer sessions (Wake Lock)","Technique autocomplete from your library when logging sessions"]},
               {version:"v0.6",date:"Mar 2025",items:["Journal & Calendar merged into one Schedule tab with sub-tabs","App tutorial walkthrough on first launch with replay from Home screen","Bottom nav streamlined from 6 tabs to 5"]},
               {version:"v0.5",date:"Mar 2025",items:["AI event search now uses your profile location — no more hardcoded region","Location field added to profile — set your city to find nearby events","Calendar log session modal now matches full journal form (Workout type, techniques, notes)","Vercel serverless API proxy for reliable Anthropic API calls"]},
