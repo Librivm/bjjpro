@@ -9,7 +9,6 @@ import ScheduleScreen from "./screens/ScheduleScreen";
 import CompScreen from "./screens/CompScreen";
 import HomeScreen, { TutorialOverlay } from "./screens/HomeScreen";
 import GymJoinScreen from "./screens/GymJoinScreen";
-import TimetableScreen from "./screens/TimetableScreen";
 
 export default function OpenmatApp() {
   const [session, setSession] = useState(undefined);
@@ -83,7 +82,6 @@ export default function OpenmatApp() {
     { id: "techniques", icon: "📚", label: "Learn" },
     { id: "schedule",   icon: "🗓",  label: "Schedule" },
     { id: "comp",       icon: "🏆", label: "Compete" },
-    { id: "timetable",  icon: "📅", label: "Classes" },
   ];
 
   return (
@@ -96,9 +94,8 @@ export default function OpenmatApp() {
         {tab === "home"       && <HomeScreen user={session.user} profile={profile} setTab={setTab} onSignOut={signOut} onReplayTutorial={replayTutorial} darkMode={darkMode} toggleDarkMode={toggleDarkMode} onProfileUpdate={setProfile} />}
         {tab === "timer"      && <TimerScreen />}
         {tab === "techniques" && <TechniqueScreen user={session.user} />}
-        {tab === "schedule"   && <ScheduleScreen user={session.user} />}
+        {tab === "schedule"   && <ScheduleScreen user={session.user} profile={profile} />}
         {tab === "comp"       && <CompScreen user={session.user} />}
-        {tab === "timetable"  && <TimetableScreen user={session.user} profile={profile} />}
       </div>
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: T.surface, borderTop: `1px solid ${T.border}`, display: "flex", zIndex: 50, boxShadow: "0 -2px 12px rgba(30,45,64,0.08)" }}>
         {tabs.map(t => (

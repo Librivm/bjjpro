@@ -115,7 +115,7 @@ function EntryForm({ gymId, userId, entry, onSave, onClose }) {
   );
 }
 
-export default function TimetableScreen({ user, profile }) {
+export default function TimetableScreen({ user, profile, embedded = false }) {
   const [subTab, setSubTab] = useState("week");
   const [weekly, setWeekly] = useState([]);
   const [events, setEvents] = useState([]);
@@ -178,8 +178,8 @@ export default function TimetableScreen({ user, profile }) {
   const weekByDay = DAYS.reduce((acc, _, i) => { acc[i] = weekly.filter(e => e.day_of_week === i); return acc; }, {});
 
   return (
-    <div style={{ padding: "0 16px", animation: "fadeUp 0.4s ease" }}>
-      <SectionTitle sub="Weekly schedule & special events">Classes</SectionTitle>
+    <div style={{ animation: "fadeUp 0.4s ease" }}>
+      {!embedded && <SectionTitle sub="Weekly schedule & special events">Classes</SectionTitle>}
 
       {/* Sub-tab toggle */}
       <div style={{ display: "flex", background: T.cardAlt, borderRadius: 12, padding: 4, marginBottom: 16, border: `1px solid ${T.border}` }}>

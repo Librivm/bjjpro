@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import { T } from "../theme";
 import { todayStr, dayName } from "../utils/time";
 import { SectionTitle, Card, Pill, StatBox, Btn, Spinner } from "../components/ui";
+import TimetableScreen from "./TimetableScreen";
 
 function JournalEntryModal({entry, onClose, onSave, onDelete, confirmDel}) {
   const [editing, setEditing] = useState(false);
@@ -81,7 +82,7 @@ function JournalEntryModal({entry, onClose, onSave, onDelete, confirmDel}) {
   );
 }
 
-export default function ScheduleScreen({user}) {
+export default function ScheduleScreen({user, profile}) {
   const [subTab, setSubTab] = useState("journal");
   const [entries, setEntries] = useState([]);
   const [comps, setComps] = useState([]);
@@ -201,8 +202,8 @@ export default function ScheduleScreen({user}) {
     <div style={{padding:"0 16px",animation:"fadeUp 0.4s ease"}}>
       <SectionTitle sub="Log sessions and track your training">Schedule</SectionTitle>
       <div style={{display:"flex",background:T.surface,borderRadius:12,padding:4,marginBottom:16,border:`1px solid ${T.border}`}}>
-        {[["journal","📓 Journal"],["calendar","📅 Calendar"]].map(([t,l]) => (
-          <button key={t} onClick={()=>{setSubTab(t);setSelectedDay(null);}} style={{flex:1,padding:"9px 0",background:subTab===t?T.teal:"none",color:subTab===t?"#fff":T.muted,border:"none",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>{l}</button>
+        {[["journal","📓 Journal"],["calendar","📅 Calendar"],["classes","🥋 Classes"]].map(([t,l]) => (
+          <button key={t} onClick={()=>{setSubTab(t);setSelectedDay(null);}} style={{flex:1,padding:"9px 0",background:subTab===t?T.teal:"none",color:subTab===t?"#fff":T.muted,border:"none",borderRadius:10,fontWeight:700,fontSize:12,cursor:"pointer",transition:"all 0.2s"}}>{l}</button>
         ))}
       </div>
 
@@ -438,6 +439,8 @@ export default function ScheduleScreen({user}) {
           </div>
         </div>
       )}
+
+      {subTab==="classes" && <TimetableScreen user={user} profile={profile} embedded />}
 
       {viewEntry && <JournalEntryModal entry={viewEntry} onClose={()=>setViewEntry(null)} onSave={updateEntry} onDelete={delEntry} confirmDel={confirmDelEntry}/>}
     </div>
