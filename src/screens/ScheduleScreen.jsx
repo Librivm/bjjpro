@@ -358,14 +358,13 @@ export default function ScheduleScreen({user, profile}) {
               <div style={{fontFamily:"'DM Serif Display'",fontSize:18,color:T.text,margin:"14px 0 10px"}}>{selectedData.dateStr}</div>
               {selectedData.comp && <Card style={{borderLeft:`4px solid ${T.orange}`,marginBottom:8}}><div style={{display:"flex",gap:8,alignItems:"center"}}><span style={{fontSize:22}}>🏆</span><div><div style={{fontWeight:700,fontSize:14}}>{selectedData.comp.name||"Competition"}</div><div style={{fontSize:12,color:T.muted}}>{selectedData.comp.weight} · {selectedData.comp.gi}</div></div></div></Card>}
               {selectedData.classes.map(sc => (
-                <Card key={sc.id} style={{borderLeft:`4px solid #8b5cf6`,marginBottom:8}}>
+                <Card key={sc.id} style={{borderLeft:"4px solid #8b5cf6",marginBottom:8}}>
                   <div style={{display:"flex",gap:8,alignItems:"center"}}>
                     <span style={{fontSize:20}}>🥋</span>
                     <div>
                       <div style={{fontWeight:700,fontSize:14,color:T.text}}>{sc.title}</div>
                       <div style={{fontSize:12,color:"#8b5cf6",fontFamily:"'JetBrains Mono'"}}>
-                        {sc.start_time?.slice(0,5)}{sc.end_time ? ` – ${sc.end_time.slice(0,5)}` : ""}
-                        {sc.instructor ? ` · ${sc.instructor}` : ""}
+                        {sc.start_time?.slice(0,5)}{sc.end_time ? ` – ${sc.end_time.slice(0,5)}` : ""}{sc.instructor ? ` · ${sc.instructor}` : ""}
                       </div>
                     </div>
                   </div>
