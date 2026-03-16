@@ -102,6 +102,7 @@ export default function ScheduleScreen({user, profile}) {
   const [editingGoal, setEditingGoal] = useState(false);
   const [confirmDelEntry, setConfirmDelEntry] = useState(null);
   const [viewEntry, setViewEntry] = useState(null);
+  const [scheduledClasses, setScheduledClasses] = useState([]);
   const today = new Date();
   const [viewDate, setViewDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDay, setSelectedDay] = useState(null);
@@ -131,16 +132,20 @@ export default function ScheduleScreen({user, profile}) {
   };
 
   const fetchData = async () => {
-    const [{data:j},{data:c},{data:p},{data:techs}] = await Promise.all([
+    const queries = [
       supabase.from("journal_entries").select("*").eq("user_id",user.id).order("date",{ascending:false}).order("created_at",{ascending:false}),
       supabase.from("competitions").select("*").eq("user_id",user.id),
       supabase.from("profiles").select("weekly_goal").eq("id",user.id).single(),
       supabase.from("custom_techniques").select("title").eq("user_id",user.id),
-    ]);
+    ];
+    if (profile?.gym_id) queries.push(supabase.from("user_schedule").select("timetable_id, timetable(*)").eq("user_id", user.id));
+    const results = await Promise.all(queries);
+    const [{data:j},{data:c},{data:p},{data:techs}] = results;
     const goal = (p?.weekly_goal) || 3;
     if (j) { setEntries(j); setStreak(calcStreak(j, goal)); }
     if (c) setComps(c);
     if (techs) setMyTechNames([...new Set(techs.map(t => t.title))]);
+    if (results[4]?.data) setScheduledClasses(results[4].data.map(r => r.timetable).filter(Boolean));
     setWeeklyGoal(goal); setGoalInput(goal); setLoading(false);
   };
   useEffect(() => { fetchData(); }, [user.id]);
@@ -194,7 +199,9 @@ export default function ScheduleScreen({user, profile}) {
   const nextMonth = () => setViewDate(new Date(year,month+1,1));
   const getDayData = (day) => {
     const dateStr = `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-    return {dateStr, trained:entries.filter(e => e.date===dateStr), comp:comps.find(c => c.date===dateStr)};
+    const dow = new Date(dateStr + "T12:00:00").getDay();
+    const classes = scheduledClasses.filter(sc => sc.day_of_week !== null ? sc.day_of_week === dow : sc.event_date === dateStr);
+    return {dateStr, trained:entries.filter(e => e.date===dateStr), comp:comps.find(c => c.date===dateStr), classes};
   };
   const selectedData = selectedDay ? getDayData(selectedDay) : null;
 
@@ -316,7 +323,7 @@ export default function ScheduleScreen({user, profile}) {
             <button onClick={nextMonth} style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,width:38,height:38,cursor:"pointer",fontSize:18,color:T.text}}>›</button>
           </div>
           <div style={{display:"flex",gap:12,marginBottom:12,flexWrap:"wrap"}}>
-            {[{color:T.teal,label:"Training"},{color:T.orange,label:"Competition"},{color:T.green,label:"Today"}].map(l => (
+            {[{color:T.teal,label:"Training"},{color:T.orange,label:"Competition"},{color:"#8b5cf6",label:"Classes"},{color:T.green,label:"Today"}].map(l => (
               <div key={l.label} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:T.muted}}><div style={{width:10,height:10,borderRadius:3,background:l.color}}/>{l.label}</div>
             ))}
           </div>
@@ -329,8 +336,8 @@ export default function ScheduleScreen({user, profile}) {
                 {Array.from({length:firstDay}).map((_,i) => <div key={`e${i}`}/>)}
                 {Array.from({length:daysInMonth}).map((_,i) => {
                   const day = i+1;
-                  const {dateStr,trained,comp} = getDayData(day);
-                  const isToday = dateStr===todayStr(), isSelected = selectedDay===day, hasTrain = trained.length>0;
+                  const {dateStr,trained,comp,classes} = getDayData(day);
+                  const isToday = dateStr===todayStr(), isSelected = selectedDay===day, hasTrain = trained.length>0, hasClass = classes.length>0;
                   return (
                     <div key={day} onClick={()=>setSelectedDay(selectedDay===day?null:day)}
                       style={{aspectRatio:"1",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",borderRadius:10,cursor:"pointer",background:isSelected?T.teal:isToday?T.greenLight:hasTrain?T.tealLight:comp?T.orangeLight:"transparent",border:`1.5px solid ${isSelected?T.teal:isToday?T.green:hasTrain?T.teal+"44":comp?T.orange+"44":"transparent"}`,transition:"all 0.15s"}}>
@@ -338,6 +345,7 @@ export default function ScheduleScreen({user, profile}) {
                       <div style={{display:"flex",gap:2,marginTop:1}}>
                         {hasTrain && <div style={{width:4,height:4,borderRadius:"50%",background:isSelected?"#fff":T.teal}}/>}
                         {comp && <div style={{width:4,height:4,borderRadius:"50%",background:isSelected?"#fff":T.orange}}/>}
+                        {hasClass && <div style={{width:4,height:4,borderRadius:"50%",background:isSelected?"#fff":"#8b5cf6"}}/>}
                       </div>
                     </div>
                   );
@@ -349,6 +357,19 @@ export default function ScheduleScreen({user, profile}) {
             <div style={{animation:"fadeUp 0.2s ease"}}>
               <div style={{fontFamily:"'DM Serif Display'",fontSize:18,color:T.text,margin:"14px 0 10px"}}>{selectedData.dateStr}</div>
               {selectedData.comp && <Card style={{borderLeft:`4px solid ${T.orange}`,marginBottom:8}}><div style={{display:"flex",gap:8,alignItems:"center"}}><span style={{fontSize:22}}>🏆</span><div><div style={{fontWeight:700,fontSize:14}}>{selectedData.comp.name||"Competition"}</div><div style={{fontSize:12,color:T.muted}}>{selectedData.comp.weight} · {selectedData.comp.gi}</div></div></div></Card>}
+              {selectedData.classes.map(sc => (
+                <Card key={sc.id} style={{borderLeft:"4px solid #8b5cf6",marginBottom:8}}>
+                  <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                    <span style={{fontSize:20}}>🥋</span>
+                    <div>
+                      <div style={{fontWeight:700,fontSize:14,color:T.text}}>{sc.title}</div>
+                      <div style={{fontSize:12,color:"#8b5cf6",fontFamily:"'JetBrains Mono'"}}>
+                        {sc.start_time?.slice(0,5)}{sc.end_time ? ` – ${sc.end_time.slice(0,5)}` : ""}{sc.instructor ? ` · ${sc.instructor}` : ""}
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ))}
               {selectedData.trained.map(e => (
                 <Card key={e.id} style={{borderLeft:`4px solid ${T.teal}`}}>
                   <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginBottom:4}}><Pill label={e.type}/><span style={{fontSize:11,color:T.muted}}>{e.duration} min</span></div>
