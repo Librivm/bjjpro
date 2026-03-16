@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabase";
 import { T } from "../theme";
 import { Card, Btn, Spinner } from "./ui";
 
-function NoticesAdmin({ user, profile, onNoticeCreated }) {
+function NoticesAdmin({ user, profile, onNoticeCreated, onNoticeDeleted }) {
   const [notices, setNotices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState("");
@@ -34,8 +34,11 @@ function NoticesAdmin({ user, profile, onNoticeCreated }) {
   };
 
   const deleteNotice = async (noticeId) => {
-    await supabase.from("notices").delete().eq("id", noticeId);
-    setNotices(prev => prev.filter(n => n.id !== noticeId));
+    const { error } = await supabase.from("notices").delete().eq("id", noticeId);
+    if (!error) {
+      setNotices(prev => prev.filter(n => n.id !== noticeId));
+      onNoticeDeleted(noticeId);
+    }
   };
 
   return (
@@ -107,6 +110,10 @@ export default function NoticesBanner({ user, profile }) {
     setNotices(prev => [notice, ...prev]);
   };
 
+  const handleNoticeDeleted = (noticeId) => {
+    setNotices(prev => prev.filter(n => n.id !== noticeId));
+  };
+
   const visible = notices.filter(n => !dismissed.has(n.id));
 
   return (
@@ -120,7 +127,7 @@ export default function NoticesBanner({ user, profile }) {
           <button onClick={() => dismiss(n.id)} style={{ marginLeft: 12, flexShrink: 0, background: "none", border: "none", cursor: "pointer", fontSize: 16, color: T.muted, lineHeight: 1, padding: "2px 4px" }}>✕</button>
         </div>
       ))}
-      {isStaff && <NoticesAdmin user={user} profile={profile} onNoticeCreated={handleNoticeCreated} />}
+      {isStaff && <NoticesAdmin user={user} profile={profile} onNoticeCreated={handleNoticeCreated} onNoticeDeleted={handleNoticeDeleted} />}
     </div>
   );
 }

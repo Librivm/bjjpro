@@ -122,8 +122,8 @@ export default function TimetableScreen({ user, profile, embedded = false }) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editEntry, setEditEntry] = useState(null);
-  const [mySchedule, setMySchedule] = useState(new Set()); // Set of timetable_ids
-  const [toggling, setToggling] = useState(new Set()); // IDs currently being toggled
+  const [mySchedule, setMySchedule] = useState(new Set());
+  const [togglingId, setTogglingId] = useState(null);
   const isStaff = profile?.role === "coach" || profile?.role === "admin";
 
   useEffect(() => {
@@ -141,7 +141,7 @@ export default function TimetableScreen({ user, profile, embedded = false }) {
   }, [profile?.gym_id, user.id]);
 
   const toggleSchedule = async (entryId) => {
-    setToggling(prev => new Set([...prev, entryId]));
+    setTogglingId(entryId);
     if (mySchedule.has(entryId)) {
       setMySchedule(prev => { const n = new Set(prev); n.delete(entryId); return n; });
       await supabase.from("user_schedule").delete().eq("user_id", user.id).eq("timetable_id", entryId);
@@ -149,7 +149,7 @@ export default function TimetableScreen({ user, profile, embedded = false }) {
       setMySchedule(prev => new Set([...prev, entryId]));
       await supabase.from("user_schedule").insert({ user_id: user.id, timetable_id: entryId });
     }
-    setToggling(prev => { const n = new Set(prev); n.delete(entryId); return n; });
+    setTogglingId(null);
   };
 
   const handleSave = (row, isEdit) => {
@@ -172,7 +172,7 @@ export default function TimetableScreen({ user, profile, embedded = false }) {
 
   const ClassCard = ({ entry }) => {
     const inSchedule = mySchedule.has(entry.id);
-    const isToggling = toggling.has(entry.id);
+    const isToggling = togglingId === entry.id;
     return (
       <div style={{ background: T.surface, borderRadius: 12, padding: "12px 14px", marginBottom: 8, borderLeft: `4px solid ${inSchedule ? "#8b5cf6" : T.teal}`, boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
