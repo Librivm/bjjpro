@@ -88,6 +88,9 @@ export default function TechniqueScreen({user}) {
   const [techLoading, setTechLoading] = useState(false);
   const [viewTech, setViewTech] = useState(null);
   const [confirmRemove, setConfirmRemove] = useState(null);
+  const [drillQueue, setDrillQueue] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("openmat_drill_queue") || "[]"); } catch { return []; }
+  });
 
   useEffect(() => {
     supabase.from("custom_techniques").select("*").eq("user_id", user.id).order("created_at", {ascending:false})
@@ -159,6 +162,14 @@ export default function TechniqueScreen({user}) {
     const n = newCatName.trim();
     if (n && !myCategories.includes(n)) setMyCategories(p => [...p, n]);
     setNewCatName(""); setAddingCat(false);
+  };
+
+  const toggleDrillQueue = (techId) => {
+    setDrillQueue(prev => {
+      const next = prev.includes(techId) ? prev.filter(id => id !== techId) : prev.length >= 5 ? prev : [...prev, techId];
+      localStorage.setItem("openmat_drill_queue", JSON.stringify(next));
+      return next;
+    });
   };
 
   const getLinkIcon = (url="") => {
@@ -249,6 +260,34 @@ export default function TechniqueScreen({user}) {
 
       {customTab==="custom" && (
         <>
+          {drillQueue.length > 0 && (() => {
+            const queued = drillQueue.map(id => myTechs.find(t => t.id === id)).filter(Boolean);
+            if (!queued.length) return null;
+            return (
+              <div style={{marginBottom:16}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <div style={{fontSize:11,color:"#8b5cf6",fontWeight:700,textTransform:"uppercase",letterSpacing:0.8}}>📌 Drill Queue ({queued.length}/5)</div>
+                  <button onClick={()=>{setDrillQueue([]);localStorage.removeItem("openmat_drill_queue");}} style={{background:"none",border:"none",fontSize:11,color:T.muted,cursor:"pointer",textDecoration:"underline"}}>Clear</button>
+                </div>
+                <div style={{background:"#f5f3ff",border:"1.5px solid #8b5cf655",borderRadius:14,padding:"10px 12px",display:"flex",flexDirection:"column",gap:8}}>
+                  {queued.map(ct => (
+                    <div key={ct.id} style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontWeight:700,fontSize:13,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ct.title}</div>
+                        <div style={{fontSize:11,color:T.muted}}>{ct.category}</div>
+                      </div>
+                      {ct.url && (
+                        <a href={ct.url} target="_blank" rel="noreferrer"
+                          style={{flexShrink:0,background:"#8b5cf6",borderRadius:8,padding:"5px 10px",textDecoration:"none",fontSize:12,color:"#fff",fontWeight:700}}>▶ Watch</a>
+                      )}
+                      <button onClick={()=>setViewTech(ct)} style={{flexShrink:0,background:T.cardAlt,border:`1px solid ${T.border}`,borderRadius:8,padding:"5px 8px",fontSize:11,color:T.muted,cursor:"pointer",fontWeight:700}}>Notes</button>
+                      <button onClick={()=>toggleDrillQueue(ct.id)} style={{flexShrink:0,background:"none",border:"none",fontSize:14,color:"#8b5cf6",cursor:"pointer",padding:"2px 4px"}}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
           {selectedCat ? (
             <>
               <button onClick={()=>setSelectedCat(null)} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",cursor:"pointer",color:T.teal,fontWeight:700,fontSize:13,marginBottom:14}}>← Back to categories</button>
@@ -256,21 +295,33 @@ export default function TechniqueScreen({user}) {
               <div style={{fontSize:12,color:T.muted,marginBottom:14}}>{catTechs.length} technique{catTechs.length!==1?"s":""} saved</div>
               <Btn onClick={()=>{setTechForm(f=>({...f,category:selectedCat}));setAddingTech(true);}} style={{width:"100%",padding:"12px",fontSize:14,marginBottom:14}}>+ Add Technique to {selectedCat}</Btn>
               {catTechs.length===0 && <div style={{textAlign:"center",color:T.muted,padding:"30px 0"}}><div style={{fontSize:36,marginBottom:8}}>📭</div><div style={{fontSize:14}}>No techniques yet — add one above</div></div>}
-              {catTechs.map(ct => (
-                <Card key={ct.id} onClick={()=>setViewTech(ct)} style={{cursor:"pointer",borderLeft:`4px solid ${LEVEL_COLORS[ct.level]?.color||T.teal}`}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-                    <div style={{flex:1}}>
-                      <div style={{fontWeight:700,fontSize:15,color:T.text,marginBottom:4}}>{ct.title}</div>
-                      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                        <Pill label={ct.level||"—"} color={LEVEL_COLORS[ct.level]?.color||T.teal} bg={LEVEL_COLORS[ct.level]?.bg||T.tealLight}/>
-                        {ct.url && <Pill label={getLinkIcon(ct.url)} color={T.orange} bg={T.orangeLight}/>}
+              {catTechs.map(ct => {
+                const inQueue = drillQueue.includes(ct.id);
+                return (
+                  <Card key={ct.id} onClick={()=>setViewTech(ct)} style={{cursor:"pointer",borderLeft:`4px solid ${LEVEL_COLORS[ct.level]?.color||T.teal}`}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontWeight:700,fontSize:15,color:T.text,marginBottom:4}}>{ct.title}</div>
+                        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                          <Pill label={ct.level||"—"} color={LEVEL_COLORS[ct.level]?.color||T.teal} bg={LEVEL_COLORS[ct.level]?.bg||T.tealLight}/>
+                        </div>
+                        {ct.notes && <div style={{fontSize:12,color:T.muted,marginTop:6,fontStyle:"italic",lineHeight:1.5}}>{ct.notes.slice(0,80)}{ct.notes.length>80?"...":""}</div>}
                       </div>
-                      {ct.notes && <div style={{fontSize:12,color:T.muted,marginTop:6,fontStyle:"italic",lineHeight:1.5}}>{ct.notes.slice(0,80)}{ct.notes.length>80?"...":""}</div>}
+                      <div style={{display:"flex",gap:6,marginLeft:8,flexShrink:0,alignItems:"center"}} onClick={e=>e.stopPropagation()}>
+                        {ct.url && (
+                          <a href={ct.url} target="_blank" rel="noreferrer"
+                            style={{background:T.orange,borderRadius:8,padding:"5px 10px",textDecoration:"none",fontSize:12,color:"#fff",fontWeight:700}}>▶</a>
+                        )}
+                        <button onClick={()=>toggleDrillQueue(ct.id)}
+                          title={inQueue?"Remove from Drill Queue":drillQueue.length>=5?"Queue full (5 max)":"Add to Drill Queue"}
+                          style={{background:inQueue?"#f5f3ff":T.cardAlt,border:`1.5px solid ${inQueue?"#8b5cf6":T.border}`,borderRadius:8,padding:"5px 8px",fontSize:11,color:inQueue?"#8b5cf6":T.muted,cursor:drillQueue.length>=5&&!inQueue?"not-allowed":"pointer",fontWeight:700,whiteSpace:"nowrap"}}>
+                          {inQueue?"📌 Pinned":"+ Queue"}
+                        </button>
+                      </div>
                     </div>
-                    <span style={{color:T.muted,fontSize:13}}>→</span>
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                );
+              })}
             </>
           ) : (
             <>
