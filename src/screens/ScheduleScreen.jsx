@@ -298,7 +298,14 @@ export default function ScheduleScreen({user, profile}) {
             </div>
           )}
           {loading && <div style={{display:"flex",justifyContent:"center",padding:"40px 0"}}><Spinner size={32}/></div>}
-          {!loading && entries.length===0 && <div style={{textAlign:"center",color:T.muted,padding:"40px 0"}}><div style={{fontSize:40,marginBottom:10}}>📓</div><div style={{fontFamily:"'DM Serif Display'",fontSize:20,color:T.text,marginBottom:4}}>No sessions yet</div><div style={{fontSize:13}}>Start logging your journey on the mats!</div></div>}
+          {!loading && entries.length===0 && (
+            <div style={{textAlign:"center",padding:"32px 0"}}>
+              <div style={{fontSize:44,marginBottom:12}}>📓</div>
+              <div style={{fontFamily:"'DM Serif Display'",fontSize:22,color:T.text,marginBottom:6}}>No sessions yet</div>
+              <div style={{fontSize:13,color:T.muted,marginBottom:20}}>Your jiu-jitsu journey starts here.</div>
+              <Btn onClick={()=>setAdding(true)} style={{padding:"13px 28px",fontSize:14}}>Log Your First Session →</Btn>
+            </div>
+          )}
           {(()=>{
             const q = searchText.toLowerCase().trim();
             const filtered = entries.filter(e => {
