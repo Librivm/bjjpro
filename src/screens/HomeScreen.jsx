@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import { T } from "../theme";
 import { BELT_COLORS, BELT_TEXT } from "../data/ibjjfRules";
 import { SectionTitle, Card, Pill, StatBox, Btn, Spinner } from "../components/ui";
+import NoticesBanner from "../components/NoticesBanner";
 
 const TUTORIAL_STEPS = [
   {icon:"👋",title:"Welcome to Openmat!",desc:"Your personal jiu-jitsu companion. Let's take a quick tour of the app so you can get the most out of it."},
@@ -40,33 +41,36 @@ export function TutorialOverlay({onComplete}) {
   );
 }
 
-export default function HomeScreen({user, setTab, onSignOut, onReplayTutorial, darkMode, toggleDarkMode}) {
+export default function HomeScreen({user, profile, setTab, onSignOut, onReplayTutorial, darkMode, toggleDarkMode, onProfileUpdate}) {
   const [entries, setEntries] = useState([]);
-  const [profile, setProfile] = useState({name:null,belt:"White",location:""});
   const [editing, setEditing] = useState(false);
-  const [nameInput, setNameInput] = useState("");
-  const [beltInput, setBeltInput] = useState("White");
-  const [locationInput, setLocationInput] = useState("");
+  const [nameInput, setNameInput] = useState(profile?.name || "");
+  const [beltInput, setBeltInput] = useState(profile?.belt || "White");
+  const [locationInput, setLocationInput] = useState(profile?.location || "");
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState("");
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [feedbackSaving, setFeedbackSaving] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      supabase.from("journal_entries").select("*").eq("user_id",user.id).order("date",{ascending:false}),
-      supabase.from("profiles").select("*").eq("id",user.id).single(),
-    ]).then(([{data:j},{data:p}]) => {
-      if (j) setEntries(j);
-      if (p) { setProfile(p); setNameInput(p.name); setBeltInput(p.belt); setLocationInput(p.location||""); }
-      setLoading(false);
-    });
+    supabase.from("journal_entries").select("*").eq("user_id", user.id).order("date", { ascending: false })
+      .then(({ data: j }) => { if (j) setEntries(j); setLoading(false); });
   }, [user.id]);
 
+  useEffect(() => {
+    if (profile) {
+      setNameInput(profile.name || "");
+      setBeltInput(profile.belt || "White");
+      setLocationInput(profile.location || "");
+    }
+  }, [profile]);
+
   const saveProfile = async () => {
-    const {error} = await supabase.from("profiles").upsert({id:user.id,name:nameInput,belt:beltInput,location:locationInput,updated_at:new Date().toISOString()});
-    if (error) { console.error("Failed to save profile:", error.message); setNameInput(profile.name); setBeltInput(profile.belt); setLocationInput(profile.location||""); return; }
-    setProfile({name:nameInput,belt:beltInput,location:locationInput}); setEditing(false);
+    const updated = { id: user.id, name: nameInput, belt: beltInput, location: locationInput, updated_at: new Date().toISOString() };
+    const { data, error } = await supabase.from("profiles").upsert(updated).select("*").single();
+    if (error) { console.error("Failed to save profile:", error.message); setNameInput(profile?.name || ""); setBeltInput(profile?.belt || "White"); setLocationInput(profile?.location || ""); return; }
+    if (data) onProfileUpdate(data);
+    setEditing(false);
   };
 
   const submitFeedback = async () => {
@@ -88,10 +92,11 @@ export default function HomeScreen({user, setTab, onSignOut, onReplayTutorial, d
     {icon:"📅",label:"Calendar",sub:"Schedule & track",action:()=>setTab("schedule"),color:T.green,bg:T.greenLight},
     {icon:"🏆",label:"Compete",sub:"Game plan & events",action:()=>setTab("comp"),color:T.teal,bg:T.tealLight},
   ];
-  const isNewUser = !loading && (!profile.name || profile.name==="Fighter") && entries.length===0;
+  const isNewUser = !loading && (!profile?.name || profile?.name === "Fighter") && entries.length === 0;
 
   return (
     <div style={{padding:"0 16px",animation:"fadeUp 0.4s ease"}}>
+      <NoticesBanner user={user} profile={profile} />
       {isNewUser && (
         <div style={{background:`linear-gradient(135deg,${T.teal},#2a5f78)`,borderRadius:18,padding:"20px",marginBottom:16,boxShadow:`0 4px 20px ${T.teal}44`,animation:"popIn 0.4s ease"}}>
           <div style={{fontSize:32,marginBottom:8}}>👋</div>
@@ -106,8 +111,8 @@ export default function HomeScreen({user, setTab, onSignOut, onReplayTutorial, d
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,padding:"16px",background:T.teal,borderRadius:18,boxShadow:`0 4px 20px ${T.teal}44`}}>
         <div>
           <div style={{fontSize:12,color:"rgba(255,255,255,0.7)",fontWeight:600,marginBottom:2}}>{greeting} 👋</div>
-          <div style={{fontFamily:"'DM Serif Display'",fontSize:26,color:"#fff",lineHeight:1}}>{profile.name||user.email?.split("@")[0]||"Fighter"}</div>
-          <div style={{marginTop:6}}><span style={{background:BELT_COLORS[profile.belt],color:BELT_TEXT[profile.belt],borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}>{profile.belt} Belt</span></div>
+          <div style={{fontFamily:"'DM Serif Display'",fontSize:26,color:"#fff",lineHeight:1}}>{profile?.name||user.email?.split("@")[0]||"Fighter"}</div>
+          <div style={{marginTop:6}}><span style={{background:BELT_COLORS[profile?.belt||"White"],color:BELT_TEXT[profile?.belt||"White"],borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}>{profile?.belt||"White"} Belt</span></div>
         </div>
         <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
           <div style={{width:52,height:52,borderRadius:"50%",background:"rgba(255,255,255,0.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,border:"2px solid rgba(255,255,255,0.3)"}}>🥋</div>
