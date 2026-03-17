@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { T } from "../theme";
-import { todayStr } from "../utils/time";
+import { todayStr, calcStreak, getWeekKey } from "../utils/time";
 import { BELT_COLORS, BELT_TEXT } from "../data/ibjjfRules";
 import { SectionTitle, Card, Pill, StatBox, Btn, Spinner } from "../components/ui";
 import NoticesBanner from "../components/NoticesBanner";
@@ -61,10 +61,43 @@ export default function HomeScreen({user, profile, setTab, onSignOut, onReplayTu
   const [quickLogging, setQuickLogging] = useState(false);
   const [quickLogged, setQuickLogged] = useState(false);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
+  const [activeMilestone, setActiveMilestone] = useState(null);
+  const [milestoneBanner, setMilestoneBanner] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("openmat_milestone_banner")); } catch { return null; }
+  });
+
+  const MILESTONES = [
+    { key:"streak_90",   emoji:"🔥", title:"90-Week Streak!",   desc:"90 consecutive weeks hitting your goal. Legendary.",      type:"streak",   threshold:90  },
+    { key:"streak_60",   emoji:"🔥", title:"60-Week Streak!",   desc:"60 weeks of consistent training. Absolutely elite.",      type:"streak",   threshold:60  },
+    { key:"streak_30",   emoji:"🔥", title:"30-Week Streak!",   desc:"30 weeks straight. You've built a real habit.",           type:"streak",   threshold:30  },
+    { key:"streak_14",   emoji:"🔥", title:"14-Week Streak!",   desc:"14 weeks hitting your goal every single week.",           type:"streak",   threshold:14  },
+    { key:"streak_7",    emoji:"🔥", title:"7-Week Streak!",    desc:"Seven weeks of consistent training. Keep going.",         type:"streak",   threshold:7   },
+    { key:"sessions_500",emoji:"🥋", title:"500 Sessions!",     desc:"Five hundred sessions on the mat. Unreal dedication.",    type:"sessions", threshold:500 },
+    { key:"sessions_250",emoji:"🥋", title:"250 Sessions!",     desc:"250 sessions logged. You're a serious practitioner.",     type:"sessions", threshold:250 },
+    { key:"sessions_100",emoji:"🥋", title:"100 Sessions!",     desc:"100 sessions on the mat. A true milestone.",              type:"sessions", threshold:100 },
+    { key:"sessions_50", emoji:"🥋", title:"50 Sessions!",      desc:"50 sessions logged. You're building something real.",     type:"sessions", threshold:50  },
+    { key:"sessions_10", emoji:"🥋", title:"10 Sessions!",      desc:"Ten sessions down. The journey has begun.",               type:"sessions", threshold:10  },
+    { key:"hours_500",   emoji:"⏱",  title:"500 Hours!",        desc:"500 hours of jiu-jitsu. You've earned every stripe.",     type:"hours",    threshold:500 },
+    { key:"hours_200",   emoji:"⏱",  title:"200 Hours!",        desc:"200 hours on the mat. Blue belt territory.",              type:"hours",    threshold:200 },
+    { key:"hours_100",   emoji:"⏱",  title:"100 Hours!",        desc:"100 hours of training. The grind is real.",               type:"hours",    threshold:100 },
+    { key:"hours_50",    emoji:"⏱",  title:"50 Hours!",         desc:"50 hours logged. You're past the beginner phase.",        type:"hours",    threshold:50  },
+  ];
 
   useEffect(() => {
     supabase.from("journal_entries").select("*").eq("user_id", user.id).order("date", { ascending: false })
-      .then(({ data: j }) => { if (j) setEntries(j); setLoading(false); });
+      .then(({ data: j }) => {
+        if (j) {
+          setEntries(j);
+          const streak = calcStreak(j, profile?.weekly_goal || 3);
+          const sessionCount = j.length;
+          const totalHours = Math.floor(j.reduce((a,e) => a + Number(e.duration||0), 0) / 60);
+          const seen = JSON.parse(localStorage.getItem("openmat_milestones_seen") || "[]");
+          const values = { streak, sessions: sessionCount, hours: totalHours };
+          const newMilestone = MILESTONES.find(m => values[m.type] >= m.threshold && !seen.includes(m.key));
+          if (newMilestone) setActiveMilestone(newMilestone);
+        }
+        setLoading(false);
+      });
   }, [user.id]);
 
   useEffect(() => {
@@ -128,9 +161,42 @@ export default function HomeScreen({user, profile, setTab, onSignOut, onReplayTu
   const profilePct = Math.round(profileSteps.filter(s => s.done).length / profileSteps.length * 100);
   const trainedToday = !loading && entries.some(e => e.date === todayStr());
 
+  const dismissMilestone = () => {
+    const seen = JSON.parse(localStorage.getItem("openmat_milestones_seen") || "[]");
+    localStorage.setItem("openmat_milestones_seen", JSON.stringify([...seen, activeMilestone.key]));
+    localStorage.setItem("openmat_milestone_banner", JSON.stringify(activeMilestone));
+    setMilestoneBanner(activeMilestone);
+    setActiveMilestone(null);
+  };
+
   return (
     <div style={{padding:"0 16px",animation:"fadeUp 0.4s ease"}}>
+      {/* Milestone pop-up overlay */}
+      {activeMilestone && (
+        <div style={{position:"fixed",inset:0,background:"rgba(13,27,42,0.92)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20,animation:"fadeUp 0.3s ease"}}>
+          <div style={{background:T.surface,borderRadius:24,padding:"36px 28px",maxWidth:340,width:"100%",textAlign:"center",boxShadow:"0 12px 40px rgba(0,0,0,0.3)",animation:"popIn 0.3s ease"}}>
+            <div style={{fontSize:64,marginBottom:16}}>{activeMilestone.emoji}</div>
+            <div style={{fontFamily:"'DM Serif Display'",fontSize:26,color:T.text,marginBottom:8}}>{activeMilestone.title}</div>
+            <div style={{fontSize:14,color:T.muted,lineHeight:1.7,marginBottom:28}}>{activeMilestone.desc}</div>
+            <Btn onClick={dismissMilestone} style={{width:"100%",padding:"14px",fontSize:15}}>Keep Going 💪</Btn>
+          </div>
+        </div>
+      )}
+
       <NoticesBanner user={user} profile={profile} />
+
+      {/* Milestone banner */}
+      {milestoneBanner && (
+        <div style={{background:T.tealLight,border:`1.5px solid ${T.teal}44`,borderRadius:14,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10,animation:"fadeUp 0.3s ease"}}>
+          <span style={{fontSize:24}}>{milestoneBanner.emoji}</span>
+          <div style={{flex:1}}>
+            <div style={{fontSize:13,fontWeight:700,color:T.text}}>{milestoneBanner.title}</div>
+            <div style={{fontSize:11,color:T.muted}}>{milestoneBanner.desc}</div>
+          </div>
+          <button onClick={()=>{ localStorage.removeItem("openmat_milestone_banner"); setMilestoneBanner(null); }}
+            style={{background:"none",border:"none",color:T.muted,fontSize:18,cursor:"pointer",lineHeight:1}}>✕</button>
+        </div>
+      )}
 
       {/* Profile progress bar — compact, tap opens edit sheet */}
       {!loading && profilePct < 100 && (

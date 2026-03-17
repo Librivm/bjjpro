@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { T } from "../theme";
-import { todayStr, dayName } from "../utils/time";
+import { todayStr, dayName, getWeekKey, calcStreak } from "../utils/time";
 import { SectionTitle, Card, Pill, StatBox, Btn, Spinner } from "../components/ui";
 import TimetableScreen from "./TimetableScreen";
 
@@ -107,29 +107,6 @@ export default function ScheduleScreen({user, profile}) {
   const [viewDate, setViewDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDay, setSelectedDay] = useState(null);
 
-  const getWeekKey = (dateStr) => {
-    const d = new Date(dateStr+"T12:00:00");
-    const dow = d.getDay();
-    const diffToMon = (dow===0?-6:1-dow);
-    const mon = new Date(d); mon.setDate(d.getDate()+diffToMon);
-    return mon.toISOString().split("T")[0];
-  };
-
-  const calcStreak = (entryList, goal) => {
-    if (!goal || goal <= 0) return 0;
-    const weekCounts = {};
-    entryList.forEach(e => { const wk = getWeekKey(e.date); weekCounts[wk] = (weekCounts[wk]||0)+1; });
-    const thisWeekKey = getWeekKey(todayStr());
-    let s = 0;
-    let cursor = new Date(thisWeekKey+"T12:00:00");
-    for (let i = 0; i < 200; i++) {
-      const key = cursor.toISOString().split("T")[0];
-      if (weekCounts[key] && weekCounts[key] >= goal) { s++; cursor.setDate(cursor.getDate()-7); }
-      else if (key === thisWeekKey) { cursor.setDate(cursor.getDate()-7); continue; }
-      else break;
-    }
-    return s;
-  };
 
   const fetchData = async () => {
     const queries = [
