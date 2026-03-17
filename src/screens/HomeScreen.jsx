@@ -61,7 +61,6 @@ export default function HomeScreen({user, profile, setTab, onSignOut, onReplayTu
   const [quickLogging, setQuickLogging] = useState(false);
   const [quickLogged, setQuickLogged] = useState(false);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
-  const [showFeedback, setShowFeedback] = useState(false);
 
   useEffect(() => {
     supabase.from("journal_entries").select("*").eq("user_id", user.id).order("date", { ascending: false })
@@ -105,7 +104,7 @@ export default function HomeScreen({user, profile, setTab, onSignOut, onReplayTu
     if (!feedback.trim()) return;
     setFeedbackSaving(true);
     const {error} = await supabase.from("feedback").insert({user_id:user.id,message:feedback.trim()});
-    if (!error) { setFeedbackSent(true); setFeedback(""); setShowFeedback(false); }
+    if (!error) { setFeedbackSent(true); setFeedback(""); }
     setFeedbackSaving(false);
   };
 
@@ -259,28 +258,29 @@ export default function HomeScreen({user, profile, setTab, onSignOut, onReplayTu
             <span style={{marginLeft:"auto",color:T.teal,fontSize:13}}>→</span>
           </button>
 
-          {/* Feedback — collapsed toggle */}
-          <div style={{marginBottom:8,textAlign:"center"}}>
+          {/* Feedback card */}
+          <Card style={{border:`1.5px solid ${T.orange}33`,background:T.orangeLight,marginTop:4,marginBottom:8}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+              <span style={{background:T.orange,color:"#fff",borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700,letterSpacing:1}}>BETA</span>
+              <div style={{fontSize:13,fontWeight:700,color:T.text}}>Help us improve Openmat</div>
+            </div>
+            <div style={{fontSize:12,color:T.muted,lineHeight:1.6,marginBottom:10}}>The Openmat App is still in Beta. Please leave your feedback below so we can improve the App over the next few months.</div>
             {feedbackSent ? (
-              <div style={{fontSize:12,color:T.green,padding:"8px 0"}}>🙏 Thanks for the feedback!</div>
+              <div style={{background:T.greenLight,border:`1px solid ${T.green}44`,borderRadius:10,padding:"10px 14px",textAlign:"center"}}>
+                <div style={{fontSize:20,marginBottom:4}}>🙏</div>
+                <div style={{fontSize:13,fontWeight:700,color:T.green}}>Thanks for the feedback!</div>
+              </div>
             ) : (
               <>
-                <button onClick={()=>setShowFeedback(f=>!f)} style={{background:"none",border:"none",color:T.muted,fontSize:12,cursor:"pointer",padding:"6px 0",textDecoration:"underline"}}>
-                  📣 Beta — send feedback {showFeedback?"▴":"▾"}
-                </button>
-                {showFeedback && (
-                  <div style={{background:T.orangeLight,border:`1px solid ${T.orange}33`,borderRadius:12,padding:"12px",marginTop:6,textAlign:"left",animation:"fadeUp 0.2s ease"}}>
-                    <textarea value={feedback} onChange={e=>setFeedback(e.target.value)} maxLength={500} rows={3}
-                      placeholder="What's working? What could be better? Any features you'd love to see?"
-                      style={{width:"100%",background:T.surface,border:`1.5px solid ${T.orange}44`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none",marginBottom:8}}/>
-                    <Btn onClick={submitFeedback} disabled={feedbackSaving||!feedback.trim()} style={{width:"100%",padding:"11px",background:T.orange,boxShadow:`0 2px 8px ${T.orange}44`}}>
-                      {feedbackSaving?<Spinner size={16} color="#fff"/>:"Send Feedback →"}
-                    </Btn>
-                  </div>
-                )}
+                <textarea value={feedback} onChange={e=>setFeedback(e.target.value)} maxLength={500} rows={3}
+                  placeholder="What's working? What could be better? Any features you'd love to see?"
+                  style={{width:"100%",background:T.surface,border:`1.5px solid ${T.orange}44`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,outline:"none",resize:"none",marginBottom:8}}/>
+                <Btn onClick={submitFeedback} disabled={feedbackSaving||!feedback.trim()} style={{width:"100%",padding:"11px",background:T.orange,boxShadow:`0 2px 8px ${T.orange}44`}}>
+                  {feedbackSaving?<Spinner size={16} color="#fff"/>:"Send Feedback →"}
+                </Btn>
               </>
             )}
-          </div>
+          </Card>
 
           {/* What's New — collapsed toggle */}
           <div style={{marginBottom:16}}>
