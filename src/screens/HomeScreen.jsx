@@ -351,11 +351,12 @@ export default function HomeScreen({user, profile, setTab, onSignOut, onReplayTu
           {/* What's New — collapsed toggle */}
           <div style={{marginBottom:16}}>
             <button onClick={()=>setShowWhatsNew(s=>!s)} style={{background:"none",border:"none",color:T.muted,fontSize:12,cursor:"pointer",padding:"6px 0",textDecoration:"underline",width:"100%",textAlign:"center"}}>
-              What's new in v0.8 {showWhatsNew?"▴":"▾"}
+              What's new in v0.9 {showWhatsNew?"▴":"▾"}
             </button>
             {showWhatsNew && (
               <div style={{marginTop:8,animation:"fadeUp 0.2s ease"}}>
                 {[
+                  {version:"v0.9",date:"Mar 2025",items:["Milestone celebrations — pop-up and home banner when you hit 10/50/100 sessions, 50/100/200 hours, or a 7/14/30 week streak","Streak bug fix — weekly streak now calculates correctly for all timezones","UI declutter — removed Quick Actions grid and Last Session preview, Edit Profile now slides up as a bottom sheet","What's New and feedback collapsed behind toggles to reduce home screen clutter","Technique Video Quick-Launch — ▶ button on library cards opens YouTube app directly","Drill Queue — pin up to 5 techniques before a session from My Library","Onboarding — name & belt setup screen for new users, profile completion progress bar, quick-log card on Home","Log Session auto-fills from your earliest scheduled class that day"]},
                   {version:"v0.8",date:"Mar 2025",items:["Gym support — join your gym with a 6-character code, switch gyms any time from Edit Profile","Coach/admin notices — dismissible banners posted by your gym staff","Weekly class schedule & special events — add classes to your personal calendar","Log Session auto-fills session type & duration from your earliest scheduled class that day","Admin: delete notices permanently, not just toggle off"]},
                   {version:"v0.7",date:"Mar 2025",items:["Dark mode with toggle in Edit Profile","Journal search & filter by session type","Screen stays awake during timer sessions (Wake Lock)","Technique autocomplete from your library when logging sessions"]},
                   {version:"v0.6",date:"Mar 2025",items:["Journal & Calendar merged into one Schedule tab with sub-tabs","App tutorial walkthrough on first launch with replay from Home screen","Bottom nav streamlined from 6 tabs to 5"]},
